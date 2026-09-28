@@ -14,3 +14,16 @@
   pip install xgboost numpy pandas
   python xgboost/verify_xgboost.py
   ```
+
+## 北京的秋天（JS 短片）
+
+[`beijing-autumn/index.html`](beijing-autumn/index.html) 是一部用 JavaScript 实时画出来的短片，约 2 分 50 秒。十五个镜头按七个节气排开，从立秋走到立冬：院子里的西瓜、胡同上空的鸽哨、白露打枣、白塔后面的月亮、故宫角楼的夕阳、香山红叶、留给喜鹊的柿子、一夜北风吹光的银杏、街口的糖炒栗子，最后写成一封寄往南方的信。页面下方附完整的分镜表（景别、运镜、转场、旁白、声音），点缩略图就从那个镜头开始播。
+
+- 用浏览器直接打开 `beijing-autumn/index.html`，点播放（有声音）。空格暂停，←/→ 快退快进 5 秒，Shift + ←/→ 换镜头。
+- 画面用 Canvas 2D 绘制，每一帧都是时间的函数 `renderFilm(t)`，所以可以随意拖动。声音用 Web Audio 合成：Karplus–Strong 拨弦的古筝、箫、鸽哨、蝉鸣和风声。整页没有用到任何图片、视频或音频文件。
+- [`beijing-autumn/render.mjs`](beijing-autumn/render.mjs) 把短片逐帧导出成 1080p 的 MP4（需要本机装有 ffmpeg）：
+
+  ```sh
+  npm install playwright && npx playwright install chromium
+  node beijing-autumn/render.mjs --out beijing-autumn.mp4
+  ```
