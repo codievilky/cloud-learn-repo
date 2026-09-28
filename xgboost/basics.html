@@ -1,0 +1,2730 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>XGBoost 预备课</title>
+<meta name="description" content="读懂 XGBoost 公式需要的基础：下标、求和、函数、损失、sigmoid、导数、抛物线的最低点、泰勒展开和正则化，每样都有动画、念法和等价代码。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;900&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<style>
+:root {
+  --paper: #eff2ee;
+  --plate: #fbfcfa;
+  --plate-2: #f3f6f2;
+  --ink: #15222a;
+  --ink-2: #34434b;
+  --muted: #5f6f76;
+  --faint: #9aa8ad;
+  --rule: #d0d8d4;
+  --grid: #e3e9e5;
+  --g: #cc4718;
+  --h: #2b5dcc;
+  --pos: #0a8163;
+  --neg: #8a44b2;
+  --mark: #f5d466;
+  --btn: #15222a;
+  --btn-ink: #f4f6f2;
+  --shadow: 0 1px 0 rgba(21, 34, 42, .04), 0 10px 28px -18px rgba(21, 34, 42, .28);
+  --f-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --f-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --f-math: "STIX Two Text", "Times New Roman", "Noto Serif SC", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0e1417;
+    --plate: #141c20;
+    --plate-2: #192226;
+    --ink: #e2eaeb;
+    --ink-2: #c0ccce;
+    --muted: #8fa0a5;
+    --faint: #5b6b70;
+    --rule: #28353a;
+    --grid: #1d282c;
+    --g: #ff7d4f;
+    --h: #80a4ff;
+    --pos: #3dcca2;
+    --neg: #c89bf0;
+    --mark: #6e5a1d;
+    --btn: #e2eaeb;
+    --btn-ink: #0e1417;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0e1417;
+  --plate: #141c20;
+  --plate-2: #192226;
+  --ink: #e2eaeb;
+  --ink-2: #c0ccce;
+  --muted: #8fa0a5;
+  --faint: #5b6b70;
+  --rule: #28353a;
+  --grid: #1d282c;
+  --g: #ff7d4f;
+  --h: #80a4ff;
+  --pos: #3dcca2;
+  --neg: #c89bf0;
+  --mark: #6e5a1d;
+  --btn: #e2eaeb;
+  --btn-ink: #0e1417;
+  --shadow: none;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-sans);
+  font-size: 17px;
+  line-height: 1.8;
+  padding-inline: 16px;
+  font-feature-settings: "palt" 0;
+}
+a { color: inherit; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--h); outline-offset: 2px; border-radius: 3px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.cg { color: var(--g); }
+.ch { color: var(--h); }
+.cp { color: var(--pos); }
+.cn { color: var(--neg); }
+mark { background: var(--mark); color: inherit; padding: 0 .15em; border-radius: 2px; }
+
+/* ---------- page grid ---------- */
+.wrap {
+  max-width: 1180px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  column-gap: 56px;
+  padding-block: 44px 110px;
+}
+.toc {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + 28px);
+  align-self: start;
+  font-size: 14px;
+  line-height: 1.5;
+  padding-top: 6px;
+}
+.toc-label { font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; color: var(--muted); margin-bottom: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc a {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--muted);
+}
+.toc a .n { font-family: var(--f-mono); font-size: 12px; padding-top: 1px; }
+.toc a:hover { color: var(--ink); background: var(--plate-2); }
+.toc a[aria-current="true"] { color: var(--ink); background: var(--plate); box-shadow: inset 0 0 0 1px var(--rule); }
+main { min-width: 0; }
+@media (max-width: 1040px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 28px 80px; }
+  .toc { display: none; }
+}
+
+/* ---------- hero ---------- */
+.hero { display: grid; gap: 18px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+h1 {
+  font-family: var(--f-serif);
+  font-weight: 900;
+  font-size: clamp(36px, 6vw, 60px);
+  line-height: 1.12;
+  letter-spacing: .01em;
+  margin: 0;
+  text-wrap: balance;
+}
+h1 .latin { font-family: var(--f-math); font-weight: 600; letter-spacing: 0; }
+.lede { font-size: 19px; line-height: 1.75; color: var(--ink-2); max-width: 36em; margin: 0; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; color: var(--muted); }
+.hero-meta span b { color: var(--ink); font-weight: 500; }
+
+/* training loop map */
+.loop { margin-top: 18px; position: relative; }
+.loop-title { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+.loop-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 26px;
+  position: relative;
+}
+.loop-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 12px 12px 14px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  min-height: 132px;
+  transition: border-color .25s, transform .25s;
+}
+.loop-card:hover { border-color: var(--ink-2); }
+.loop-card .k { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--muted); }
+.loop-card .t { font-weight: 700; font-size: 15px; line-height: 1.4; }
+.loop-card .f { font-family: var(--f-math); font-size: 16px; line-height: 1.45; color: var(--ink-2); }
+.loop-card .c { font-size: 12px; color: var(--muted); margin-top: auto; }
+.loop-grid > li { display: grid; position: relative; }
+.loop-grid > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -20px; top: 56px;
+  width: 14px; height: 14px;
+  border-top: 2px solid var(--faint);
+  border-right: 2px solid var(--faint);
+  transform: rotate(45deg);
+}
+.loop-back {
+  grid-column: 2 / 6;
+  height: 26px;
+  /* from the centre of card ② (step ①) to the centre of card ⑤: 5 columns, 4 gaps of 26px */
+  margin: 8px calc((100% - 104px) * 0.1) 0 calc((100% - 104px) * 0.3 + 26px);
+  border: 2px solid var(--faint);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  position: relative;
+}
+.loop-back::before {
+  content: "";
+  position: absolute; left: -8px; top: -4px;
+  border: 7px solid transparent;
+  border-bottom: 10px solid var(--faint);
+  border-top: 0;
+}
+.loop-back span {
+  position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%);
+  background: var(--paper); padding: 0 10px; font-size: 13px; color: var(--muted); white-space: nowrap;
+}
+.loop-grid li.on .loop-card { border-color: var(--ink); transform: translateY(-2px); }
+@media (max-width: 760px) {
+  .loop-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .loop-card { min-height: 0; grid-template-columns: auto 1fr; column-gap: 12px; }
+  .loop-card .k { grid-row: 1 / 4; padding-top: 3px; }
+  .loop-grid > li:not(:last-child)::after { right: auto; left: 50%; top: auto; bottom: -12px; width: 10px; height: 10px; transform: translateX(-50%) rotate(135deg); }
+  .loop-back { height: auto; margin: 12px 0 0; border: 0; border-radius: 0; text-align: center; }
+  .loop-back::before { display: none; }
+  .loop-back span { position: static; transform: none; padding: 0; background: none; }
+  .loop-back span::before { content: "↺ 回到第 ① 步，开始"; }
+}
+
+/* ---------- chapters ---------- */
+.chapter { border-top: 1px solid var(--rule); margin-top: 72px; padding-top: 56px; scroll-margin-top: 12px; }
+.chapter-head { display: grid; gap: 6px; margin-bottom: 18px; }
+.chapter-no { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+h2 {
+  font-family: var(--f-serif);
+  font-weight: 900;
+  font-size: clamp(25px, 3.4vw, 34px);
+  line-height: 1.3;
+  margin: 0;
+  text-wrap: balance;
+}
+h3 { font-size: 18px; font-weight: 700; margin: 36px 0 6px; line-height: 1.5; }
+.prose p, .prose ul, .prose ol { max-width: 40em; }
+.prose p { margin: 0 0 14px; }
+.prose ul, .prose ol { padding-left: 1.3em; margin: 0 0 14px; }
+.prose li { margin: 3px 0; }
+.prose li::marker { color: var(--faint); }
+.small { font-size: 14px; color: var(--muted); }
+
+/* ---------- math ---------- */
+.eq {
+  font-family: var(--f-math);
+  font-size: 21px;
+  line-height: 1.6;
+  margin: 14px 0 18px;
+  padding: 10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  max-width: 40em;
+}
+.eq .note { font-family: var(--f-sans); font-size: 14px; color: var(--muted); margin-left: 18px; white-space: nowrap; }
+.m { font-family: var(--f-math); font-size: 1.1em; white-space: nowrap; }
+.m i, .eq i { font-style: italic; }
+.frac {
+  display: inline-flex; flex-direction: column; vertical-align: middle;
+  text-align: center; margin: 0 .12em; line-height: 1.25;
+}
+.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .25em .06em; }
+.frac > span:last-child { padding: .08em .25em 0; }
+.op { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1; margin: 0 .1em; }
+.op .s { font-size: 1.45em; line-height: 1; }
+.op .b, .op .t { font-size: .6em; font-style: italic; }
+.eq sub, .eq sup, .m sub, .m sup { font-size: .68em; line-height: 0; }
+.eq .gap { display: inline-block; width: .6em; }
+.eq .eqp { display: inline-block; white-space: nowrap; margin-right: 1.2em; }
+.eq.multi { white-space: normal; }
+.eqlive { font-family: var(--f-math); font-size: 17px; line-height: 1.7; overflow-x: auto; }
+.eqlive .num { font-family: var(--f-mono); font-size: 14px; font-style: normal; }
+
+/* ---------- figure plates ---------- */
+.fig {
+  margin: 28px 0 34px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.fig-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  padding: 13px 18px 11px;
+  border-bottom: 1px solid var(--rule);
+}
+.fig-no { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; color: var(--muted); }
+.fig-title { font-weight: 700; font-size: 15px; line-height: 1.5; }
+.fig-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-left: auto; font-size: 13px; color: var(--muted); }
+.fig-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.sw.sq { border-radius: 2px; }
+.sw.ln { width: 16px; height: 2px; border-radius: 0; }
+.stage { position: relative; }
+.stage canvas { display: block; width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.stage canvas.drag { cursor: ew-resize; }
+.stage canvas.grab { cursor: grab; }
+.caption {
+  padding: 12px 18px 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 15px;
+  line-height: 1.75;
+  min-height: 5.6em;
+}
+.caption .st { font-family: var(--f-mono); font-size: 12px; color: var(--muted); margin-right: 10px; letter-spacing: .04em; }
+.caption .tt { font-weight: 700; margin-right: 6px; }
+.controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 4px 18px 14px;
+}
+.tl-buttons { display: flex; gap: 6px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; min-width: 34px; padding: 0 10px;
+  font: 500 14px/1 var(--f-sans);
+  color: var(--ink);
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--ink-2); }
+.btn svg { width: 16px; height: 16px; display: block; }
+.btn.primary { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); min-width: 84px; }
+.btn.primary:hover { opacity: .9; }
+.tl-count { font-size: 12px; color: var(--muted); white-space: nowrap; min-width: 4.5em; text-align: right; }
+input[type="range"] { accent-color: var(--ink); width: 100%; margin: 0; min-width: 0; }
+.scrub { height: 20px; }
+.params {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 26px;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--rule);
+  background: var(--plate-2);
+  font-size: 14px;
+}
+.param { display: grid; grid-template-columns: auto 132px auto; align-items: center; gap: 10px; }
+.param label { color: var(--ink-2); white-space: nowrap; }
+.param output { font-family: var(--f-mono); font-size: 13px; min-width: 3.2em; font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; }
+.seg button {
+  font: 500 13px/1 var(--f-sans); color: var(--ink-2);
+  background: var(--plate); border: 0; padding: 8px 11px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-ink); }
+.seg-wrap { display: inline-flex; align-items: center; gap: 10px; color: var(--ink-2); }
+.param-note { font-size: 13px; color: var(--muted); flex-basis: 100%; }
+.live {
+  padding: 12px 18px;
+  border-top: 1px solid var(--rule);
+  background: var(--plate-2);
+}
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 22px; font-size: 14px; }
+.readout div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--rule); padding: 3px 0; }
+.readout dt, .readout .k { color: var(--muted); }
+.readout .v { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  .controls { grid-template-columns: 1fr auto; }
+  .controls .scrub { grid-column: 1 / -1; grid-row: 2; }
+  .param { grid-template-columns: auto minmax(90px, 1fr) auto; width: 100%; }
+  .fig-legend { margin-left: 0; }
+  .eq { font-size: 17px; }
+}
+
+/* stage chips for the training loop figure */
+.phases { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px 0; }
+.phase {
+  font-size: 13px; padding: 4px 10px; border-radius: 99px;
+  border: 1px solid var(--rule); color: var(--muted); background: var(--plate);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.phase.on { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); }
+
+/* split layout inside a plate: canvas + table */
+.split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.split > .tablebox { border-left: 1px solid var(--rule); }
+@media (max-width: 900px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .split > .tablebox { border-left: 0; border-top: 1px solid var(--rule); }
+}
+.tablebox { overflow-x: auto; padding: 8px 12px 10px; }
+table.samples { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.samples th {
+  font-weight: 500; color: var(--muted); text-align: right; padding: 4px 6px;
+  border-bottom: 1px solid var(--rule); white-space: nowrap; font-size: 12px;
+}
+table.samples th:first-child, table.samples td:first-child { text-align: left; }
+table.samples td { font-family: var(--f-mono); text-align: right; padding: 2px 6px; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+table.samples td.bar { position: relative; min-width: 64px; }
+table.samples td.bar i { position: absolute; top: 5px; bottom: 5px; opacity: .22; border-radius: 2px; }
+table.samples td.bar span { position: relative; }
+table.samples tr.flash td { background: var(--plate-2); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: 0; }
+.dot.sq { border-radius: 2px; }
+
+/* notes */
+.aside {
+  max-width: 40em;
+  margin: 18px 0 20px;
+  padding: 14px 18px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.aside .label { display: block; font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; color: var(--muted); margin-bottom: 4px; }
+.aside p { margin: 0 0 8px; }
+.aside p:last-child { margin: 0; }
+.key { font-size: 18px; line-height: 1.75; max-width: 38em; margin: 22px 0; font-weight: 500; }
+pre.code {
+  font-family: var(--f-mono); font-size: 13px; line-height: 1.65;
+  background: var(--plate); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 14px 16px; overflow-x: auto; margin: 14px 0 18px; max-width: 100%;
+  color: var(--ink-2);
+}
+pre.code .c { color: var(--muted); }
+
+/* parameter table */
+.ptable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--plate); }
+table.ptable { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.6; min-width: 640px; }
+table.ptable th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; letter-spacing: .06em; padding: 10px 14px; border-bottom: 1px solid var(--rule); background: var(--plate-2); }
+table.ptable td { padding: 9px 14px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+table.ptable tr:last-child td { border-bottom: 0; }
+table.ptable td:first-child { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
+table.ptable td.d { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; color: var(--ink-2); }
+table.ptable .where { display: inline-block; font-size: 12px; color: var(--muted); border: 1px solid var(--rule); border-radius: 99px; padding: 0 8px; margin-right: 6px; white-space: nowrap; }
+
+/* system diagram */
+.sys { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 18px 0 22px; }
+.sys-card { background: var(--plate); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; font-size: 14.5px; line-height: 1.7; }
+.sys-card h4 { margin: 0 0 6px; font-size: 15px; }
+.sys-card svg { width: 100%; height: auto; display: block; margin: 4px 0 10px; }
+.sys-card p { margin: 0; color: var(--ink-2); }
+
+.summary { margin-top: 26px; display: grid; gap: 10px; counter-reset: s; max-width: 42em; padding: 0; list-style: none; }
+.summary li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: baseline; }
+.summary li::before { counter-increment: s; content: counter(s); font-family: var(--f-mono); font-size: 13px; color: var(--muted); border: 1px solid var(--rule); border-radius: 99px; width: 26px; height: 26px; display: grid; place-items: center; background: var(--plate); }
+footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--muted); max-width: 44em; }
+
+/* ============ 预备课 additions ============ */
+.formula {
+  font-family: var(--f-math);
+  font-size: clamp(23px, 3.4vw, 32px);
+  line-height: 1.55;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  padding: 8px 2px 10px;
+}
+.formula.mid { font-size: clamp(20px, 2.6vw, 26px); }
+.formula i { font-style: italic; }
+.formula sub, .formula sup { font-size: .62em; line-height: 0; }
+.part {
+  display: inline-block;
+  border-radius: 5px;
+  padding: 0 .08em;
+  cursor: pointer;
+  transition: background-color .2s, box-shadow .2s;
+}
+.part:hover { background: var(--plate-2); box-shadow: 0 0 0 1px var(--rule); }
+.part.on { background: var(--mark); box-shadow: 0 0 0 3px var(--mark); }
+.anat { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.anat-main { padding: 14px 18px 12px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.anat > .stage { border-left: 1px solid var(--rule); }
+@media (max-width: 860px) {
+  .anat { grid-template-columns: minmax(0, 1fr); }
+  .anat > .stage { border-left: 0; border-top: 1px solid var(--rule); }
+}
+.say { display: grid; grid-template-columns: 4.4em minmax(0, 1fr); gap: 6px 12px; font-size: 15px; line-height: 1.7; }
+.say .lbl { font-family: var(--f-mono); font-size: 11px; letter-spacing: .12em; color: var(--muted); padding-top: 4px; }
+.say .v { min-width: 0; }
+.say .lin { font-family: var(--f-math); font-size: 17px; }
+.fig pre.code { margin: 0; border: 0; border-radius: 0; border-top: 1px solid var(--rule); background: var(--plate-2); font-size: 13px; }
+pre.code .tok { border-radius: 3px; transition: background-color .2s; }
+pre.code .tok.on { background: var(--mark); color: var(--ink); }
+pre.code .ln { display: block; margin: 0 -8px; padding: 0 8px; border-radius: 3px; transition: background-color .2s; }
+pre.code .ln.on { background: var(--mark); color: var(--ink); }
+.duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid var(--rule); }
+.duo > * { min-width: 0; }
+.duo > * + * { border-left: 1px solid var(--rule); }
+.duo pre.code { border-top: 0; height: 100%; }
+@media (max-width: 860px) {
+  .duo { grid-template-columns: minmax(0, 1fr); }
+  .duo > * + * { border-left: 0; border-top: 1px solid var(--rule); }
+}
+.watch { padding: 12px 18px; background: var(--plate-2); }
+.watch .readout { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.formbar { padding: 10px 18px 4px; border-bottom: 1px solid var(--rule); }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 18px 12px; border-bottom: 1px solid var(--rule); }
+.tabs button {
+  font: 500 13px/1 var(--f-sans); padding: 8px 12px; cursor: pointer;
+  color: var(--ink-2); background: var(--plate); border: 1px solid var(--rule); border-radius: 99px;
+}
+.tabs button:hover { border-color: var(--ink-2); }
+.tabs button[aria-pressed="true"] { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); }
+.numbers { padding: 12px 18px; border-top: 1px solid var(--rule); background: var(--plate-2); font-size: 15px; line-height: 1.8; }
+.numbers .num { font-family: var(--f-mono); font-size: 14px; }
+/* symbol dictionary */
+.symwrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--plate); }
+table.sym { border-collapse: collapse; width: 100%; font-size: 14.5px; line-height: 1.6; min-width: 640px; }
+table.sym th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; letter-spacing: .06em; padding: 10px 14px; border-bottom: 1px solid var(--rule); background: var(--plate-2); }
+table.sym td { padding: 8px 14px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+table.sym tr:last-child td { border-bottom: 0; }
+table.sym td.s { font-family: var(--f-math); font-size: 20px; white-space: nowrap; line-height: 1.3; }
+table.sym td.c { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; color: var(--ink-2); }
+table.sym td.r { white-space: nowrap; color: var(--ink-2); }
+/* index table (chapter 1) */
+table.gridt { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.gridt th { font-weight: 500; color: var(--muted); padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; font-family: var(--f-math); font-size: 15px; }
+table.gridt th:first-child, table.gridt td:first-child { text-align: left; }
+table.gridt td { font-family: var(--f-mono); padding: 3px 8px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; transition: background-color .25s; }
+table.gridt tr.row-on td { background: var(--plate-2); }
+table.gridt .col-on { box-shadow: inset 1px 0 0 var(--faint), inset -1px 0 0 var(--faint); }
+table.gridt .cell-on { background: var(--mark) !important; color: var(--ink); font-weight: 600; }
+.bigread { font-family: var(--f-math); font-size: 22px; line-height: 1.6; }
+.bigread .num { font-family: var(--f-mono); font-size: 17px; }
+.bigread .note { font-family: var(--f-sans); font-size: 14px; color: var(--muted); margin-left: 10px; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 16px 0 20px; max-width: 44em; }
+.pair > div { background: var(--plate); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; font-size: 15px; line-height: 1.7; }
+.pair .h { font-family: var(--f-mono); font-size: 11px; letter-spacing: .12em; color: var(--muted); display: block; margin-bottom: 2px; }
+.pair .m { font-family: var(--f-math); font-size: 19px; }
+.next { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; margin-top: 26px; padding: 16px 18px; background: var(--plate); border: 1px solid var(--rule); border-radius: 6px; max-width: 44em; }
+.next a { font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="章节">
+  <div class="toc-label">目录</div>
+  <ol>
+    <li><a href="#b1"><span class="n">01</span><span>下标和上标</span></a></li>
+    <li><a href="#b2"><span class="n">02</span><span>Σ 求和</span></a></li>
+    <li><a href="#b3"><span class="n">03</span><span>函数和决策树</span></a></li>
+    <li><a href="#b4"><span class="n">04</span><span>损失函数</span></a></li>
+    <li><a href="#b5"><span class="n">05</span><span>sigmoid</span></a></li>
+    <li><a href="#b6"><span class="n">06</span><span>导数</span></a></li>
+    <li><a href="#b7"><span class="n">07</span><span>抛物线的最低点</span></a></li>
+    <li><a href="#b8"><span class="n">08</span><span>泰勒展开</span></a></li>
+    <li><a href="#b9"><span class="n">09</span><span>正则化</span></a></li>
+    <li><a href="#b10"><span class="n">10</span><span>公式翻译器</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">预备课 · 配合《XGBoost 动画图解》阅读</div>
+  <h1><span class="latin">XGBoost</span> 预备课</h1>
+  <p class="lede">正文里的公式只用到几样数学工具：下标、求和、函数、导数、抛物线的最低点和 sigmoid。这一篇一样一样讲，每样都配一张能动的小图、一句“念法”和几行等价的 Python 代码。读完再回去看正文，每个公式你都能念出来，也能自己算出来。</p>
+
+  <figure class="fig" id="fig-omega">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 0</span><span class="fig-title">先拆一个公式：Ω(f) 由七块组成（点公式里的任何一块）</span>
+    </figcaption>
+    <div class="anat">
+      <div class="anat-main">
+        <div class="formula" id="omega-f"><span class="part" data-k="omega" tabindex="0" role="button">Ω(<i>f</i>)</span> = <span class="part" data-k="gamma" tabindex="0" role="button"><i>γ</i></span><span class="part" data-k="T" tabindex="0" role="button"><i>T</i></span> + <span class="part" data-k="lam" tabindex="0" role="button"><span class="frac"><span>1</span><span>2</span></span><i>λ</i></span> <span class="part" data-k="sum" tabindex="0" role="button"><span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span></span><span class="part" data-k="wj" tabindex="0" role="button"><i>w<sub>j</sub></i></span><span class="part" data-k="sq" tabindex="0" role="button"><sup>2</sup></span></div>
+        <div class="say">
+          <span class="lbl">念法</span><span class="v">Ω f 等于 γ 乘 T，加上二分之一乘 λ，再乘“j 从 1 到 T，w j 的平方”加起来</span>
+          <span class="lbl">大白话</span><span class="v">一棵树的罚分 = 每片叶子的罚金 × 叶子数 + ½ × λ × 所有叶子分数的平方和</span>
+          <span class="lbl">文字版</span><span class="v lin">Ω(f) = γ·T + ½·λ·(w₁² + w₂² + … + w_T²)</span>
+        </div>
+      </div>
+      <div class="stage"><canvas role="img" aria-label="一棵有 3 片叶子的树，随着讲解依次标出叶子数、叶子分数和它们的平方"></canvas></div>
+    </div>
+    <pre class="code" id="omega-code"></pre>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="omega-gam">γ</label><input type="range" id="omega-gam" min="0" max="2" step="0.1" value="0"><output for="omega-gam">0.0</output></div>
+      <div class="param"><label for="omega-lam">λ</label><input type="range" id="omega-lam" min="0" max="3" step="0.1" value="1"><output for="omega-lam">1.0</output></div>
+      <span class="param-note">γ、λ 是你自己设定的数（XGBoost 的参数 gamma、lambda，默认 0 和 1）。拖动它们，Ω 会跟着变。</span>
+    </div>
+  </figure>
+  <p class="small" style="margin:6px 0 0;max-width:44em">一个公式就是一行计算：给每个字母填上数，按顺序算出来。后面十章按“念得出、算得出”的顺序排：先认符号（第 1–3 章），再看误差怎么量（第 4–5 章），再学找最低点的工具（第 6–8 章），最后回到 Ω 本身（第 9 章）和正文的全部公式（第 10 章）。</p>
+</header>
+
+<!-- ============ 1 ============ -->
+<section class="chapter prose" id="b1">
+  <div class="chapter-head"><span class="chapter-no">第 1 章</span><h2>下标、上标、帽子和星号</h2></div>
+  <p>公式里的大部分符号只是在给数据起名字。先把名字认全。</p>
+  <ul>
+    <li><b>下标是编号。</b>17 个西瓜从 1 编到 17。第 <i class="m">i</i> 个瓜的特征记作 <i class="m">x<sub>i</sub></i>（密度、含糖率），真实答案记作 <i class="m">y<sub>i</sub></i>（好瓜 = 1，坏瓜 = 0）。右下角的小字就是代码里的方括号：<span class="mono">x[i]</span>、<span class="mono">y[i]</span>。</li>
+    <li><b>帽子表示预测。</b><i class="m">ŷ</i> 读作“y hat”，是模型猜的值；<i class="m">y</i> 是真实答案。两个要分清。</li>
+    <li><b>带括号的上标表示轮次。</b>XGBoost 一轮加一棵树，第 <i class="m">t</i> 轮之后的预测写成 <i class="m">ŷ<sub>i</sub></i><sup>(<i>t</i>)</sup>。括号里的 <i class="m">t</i> 不是乘方。</li>
+    <li><b>不带括号的上标才是乘方。</b><i class="m">w</i><sup>2</sup> = <i class="m">w</i> × <i class="m">w</i>。</li>
+    <li><b>星号表示“最好的那个”。</b><i class="m">w</i>* 是能让目标最小的 <i class="m">w</i>。</li>
+    <li><b>字母挨着写就是相乘。</b><i class="m">γT</i> 就是 <i class="m">γ</i> × <i class="m">T</i>。</li>
+  </ul>
+
+  <figure class="fig" id="fig-index">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 1</span><span class="fig-title">17 个瓜、6 个轮次：下标选行，上标选列</span>
+    </figcaption>
+    <div class="live"><div class="bigread" id="index-read"></div></div>
+    <div class="tablebox"><table class="gridt" id="index-table" aria-label="每个西瓜在每一轮之后的预测值"></table></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="index-i">下标 i</label><input type="range" id="index-i" min="1" max="17" step="1" value="1"><output for="index-i">1</output></div>
+      <div class="param"><label for="index-t">上标 t</label><input type="range" id="index-t" min="0" max="5" step="1" value="0"><output for="index-t">0</output></div>
+      <span class="param-note">表中 ŷ 是 log-odds（第 5 章会讲），正数偏向好瓜，负数偏向坏瓜。数字来自正文训练的前 5 棵树。</span>
+    </div>
+  </figure>
+
+  <h3>符号表：遇到看不懂的回来查</h3>
+  <div class="symwrap">
+    <table class="sym">
+      <thead><tr><th>符号</th><th>怎么念</th><th>意思</th><th>写成代码</th></tr></thead>
+      <tbody>
+        <tr><td class="s"><i>x<sub>i</sub></i>, <i>y<sub>i</sub></i></td><td class="r">x i，y i</td><td>第 i 个样本的特征和真实答案</td><td class="c">x[i], y[i]</td></tr>
+        <tr><td class="s"><i>ŷ<sub>i</sub></i></td><td class="r">y hat i</td><td>第 i 个样本的预测值</td><td class="c">y_hat[i]</td></tr>
+        <tr><td class="s"><i>ŷ</i><sup>(<i>t</i>)</sup></td><td class="r">y hat 上标 t</td><td>第 t 轮之后的预测，括号里是轮次</td><td class="c">y_hat_after[t]</td></tr>
+        <tr><td class="s"><i>w<sub>j</sub></i>, <i>w</i><sup>2</sup></td><td class="r">w j，w 平方</td><td>第 j 片叶子的分数；w 乘 w</td><td class="c">w[j], w ** 2</td></tr>
+        <tr><td class="s"><i>w</i>*</td><td class="r">w star</td><td>让目标最小的那个 w</td><td class="c">w_best</td></tr>
+        <tr><td class="s">Σ</td><td class="r">sigma，求和</td><td>把一串数加起来（第 2 章）</td><td class="c">sum(...)</td></tr>
+        <tr><td class="s"><i>i</i> ∈ <i>I<sub>j</sub></i></td><td class="r">i 属于 I j</td><td>编号 i 在集合 I<sub>j</sub> 里</td><td class="c">i in I[j]</td></tr>
+        <tr><td class="s"><i>f</i>(<i>x</i>)</td><td class="r">f of x</td><td>把 x 放进机器 f，得到输出（第 3 章）</td><td class="c">f(x)</td></tr>
+        <tr><td class="s"><i>l</i>(<i>y</i>, <i>ŷ</i>)</td><td class="r">l of y, y hat</td><td>损失：预测错了多少（第 4 章）</td><td class="c">loss(y, y_hat)</td></tr>
+        <tr><td class="s">σ(<i>z</i>)</td><td class="r">sigma of z</td><td>sigmoid，把任意数变成 0 到 1 的概率（第 5 章）</td><td class="c">1/(1+exp(-z))</td></tr>
+        <tr><td class="s">e, ln</td><td class="r">e，自然对数</td><td>e ≈ 2.718；ln 是 e 的“反操作”，ln e<sup>z</sup> = z</td><td class="c">math.e, math.log</td></tr>
+        <tr><td class="s">∂<i>l</i>/∂<i>ŷ</i></td><td class="r">l 对 y hat 的偏导</td><td>ŷ 变一点点，l 变多少（第 6 章）</td><td class="c">(l(y_hat+d)-l(y_hat))/d</td></tr>
+        <tr><td class="s">Δ</td><td class="r">delta</td><td>变化量，Δ<i>l</i> 是“l 变了多少”</td><td class="c">l_new - l_old</td></tr>
+        <tr><td class="s">≈</td><td class="r">约等于</td><td>左右近似相等</td><td class="c">—</td></tr>
+        <tr><td class="s">←</td><td class="r">更新为</td><td>用右边算出的值替换左边</td><td class="c">y_hat = y_hat + ...</td></tr>
+        <tr><td class="s">|<i>g</i>|</td><td class="r">g 的绝对值</td><td>去掉负号</td><td class="c">abs(g)</td></tr>
+        <tr><td class="s"><i>λ</i></td><td class="r">lambda（兰姆达）</td><td>L2 正则的力度，参数 lambda</td><td class="c">lam</td></tr>
+        <tr><td class="s"><i>γ</i></td><td class="r">gamma（伽马）</td><td>每片叶子的罚金，参数 gamma</td><td class="c">gamma</td></tr>
+        <tr><td class="s"><i>η</i></td><td class="r">eta（伊塔）</td><td>学习率，参数 eta</td><td class="c">eta</td></tr>
+        <tr><td class="s">Ω</td><td class="r">omega（欧米伽）</td><td>一棵树的复杂度罚分（第 9 章）</td><td class="c">omega(tree)</td></tr>
+        <tr><td class="s"><i>T</i></td><td class="r">T</td><td>一棵树的叶子数</td><td class="c">len(leaves)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="chapter prose" id="b2">
+  <div class="chapter-head"><span class="chapter-no">第 2 章</span><h2>Σ：会循环的求和符号</h2></div>
+  <p>Σ 是希腊字母 sigma 的大写，在公式里只有一个意思：把一串数加起来。它就是一个 for 循环。</p>
+  <div class="eq multi"><span class="eqp"><span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> <i>w<sub>j</sub></i><sup>2</sup> = <i>w</i><sub>1</sub><sup>2</sup> + <i>w</i><sub>2</sub><sup>2</sup> + … + <i>w<sub>T</sub></i><sup>2</sup></span></div>
+  <p>三个位置各管一件事：Σ 下面写从哪开始（<i class="m">j</i> = 1），上面写到哪结束（<i class="m">T</i>），右边写每一项长什么样（<i class="m">w<sub>j</sub></i><sup>2</sup>）。<i class="m">j</i> 就是循环变量。</p>
+  <p>还有一种写法把条件写在下面，比如 Σ<sub><i>i</i>∈<i>I<sub>j</sub></i></sub> <i class="m">g<sub>i</sub></i>：只加那些编号属于集合 <i class="m">I<sub>j</sub></i> 的样本。这就是循环里多了一个 if。</p>
+
+  <figure class="fig" id="fig-sum">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 2</span><span class="fig-title">Σ 就是一个 for 循环（切换上面两个例子）</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>好瓜</span><span><i class="sw sq" style="background:var(--neg)"></i>坏瓜</span></span>
+    </figcaption>
+    <div class="tabs" id="sum-mode" role="group" aria-label="例子"><button type="button" data-v="leaves" aria-pressed="true">Σ 叶子分数的平方</button><button type="button" data-v="samples">Σ 只加某片叶子里的 g</button></div>
+    <div class="formbar"><div class="formula mid" id="sum-f"></div></div>
+    <div class="stage"><canvas role="img" aria-label="循环变量依次指向每一项，把它加到累计值上"></canvas></div>
+    <div class="duo"><pre class="code" id="sum-code"></pre><div class="watch"><dl class="readout" id="sum-watch"></dl></div></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+  </figure>
+
+  <p>正文里的 Σ 都是这两种之一：Σ<sub><i>i</i></sub> 对所有样本加，Σ<sub><i>j</i></sub> 对所有叶子加，Σ<sub><i>k</i></sub> 对所有树加，Σ<sub><i>i</i>∈<i>I<sub>j</sub></i></sub> 只对第 <i class="m">j</i> 片叶子里的样本加。</p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section class="chapter prose" id="b3">
+  <div class="chapter-head"><span class="chapter-no">第 3 章</span><h2>函数和决策树：f(x) = w<sub>q(x)</sub></h2></div>
+  <p>函数是一台机器：放进一个输入，吐出一个输出。<i class="m">f</i>(<i class="m">x</i>) = 2<i class="m">x</i> + 1 是一台机器，一棵决策树也是。</p>
+  <p>XGBoost 的树这样工作：输入一个瓜的特征 <i class="m">x</i>，从根开始回答一串“是 / 否”问题，停在某片叶子上，输出那片叶子上的分数。正文把它拆成两步写：</p>
+  <div class="pair">
+    <div><span class="h">第一步 · 找叶子</span><span class="m"><i>q</i>(<i>x</i>)</span> = 这个瓜落进第几片叶子（叶子编号 1、2、3）</div>
+    <div><span class="h">第二步 · 取分数</span><span class="m"><i>w</i><sub><i>q</i>(<i>x</i>)</sub></span> = 分数表 <i class="m">w</i> 里的第 <i class="m">q</i>(<i class="m">x</i>) 个，代码里写 <span class="mono">w[q(x)]</span></div>
+  </div>
+
+  <figure class="fig" id="fig-walk">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 3</span><span class="fig-title">三个瓜走过同一棵树</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>好瓜 / 正分数</span><span><i class="sw sq" style="background:var(--neg)"></i>坏瓜 / 负分数</span></span>
+    </figcaption>
+    <div class="duo" style="border-top:0"><div class="stage"><canvas role="img" aria-label="一个西瓜从树根沿着是或否的分支走到叶子"></canvas></div><pre class="code" id="walk-code"></pre></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+  </figure>
+
+  <p>叶子上放的是一个数，可正可负，不是“好瓜 / 坏瓜”。正数往好瓜推，负数往坏瓜推，最后再换算成概率（第 5 章）。</p>
+  <p>XGBoost 的模型是很多棵这样的树加起来：<i class="m">ŷ</i> = <i class="m">f</i><sub>1</sub>(<i class="m">x</i>) + <i class="m">f</i><sub>2</sub>(<i class="m">x</i>) + … + <i class="m">f<sub>K</sub></i>(<i class="m">x</i>) = Σ<sub><i>k</i>=1</sub><sup><i>K</i></sup> <i class="m">f<sub>k</sub></i>(<i class="m">x</i>)。下标 <i class="m">k</i> 是树的编号，<i class="m">K</i> 是树的总数。</p>
+</section>
+
+<!-- ============ 4 ============ -->
+<section class="chapter prose" id="b4">
+  <div class="chapter-head"><span class="chapter-no">第 4 章</span><h2>损失函数：量一量错了多少</h2></div>
+  <p>训练需要一个“错了多少”的分数，叫损失函数，写作 <i class="m">l</i>(<i class="m">y</i>, <i class="m">ŷ</i>)：给它真实答案 <i class="m">y</i> 和预测 <i class="m">ŷ</i>，它返回一个不小于 0 的数，越小越好。</p>
+  <p><b>回归用平方损失</b> <i class="m">l</i> = ½(<i class="m">y</i> − <i class="m">ŷ</i>)²。差多少，就罚差值的平方。平方有两个好处：结果总是正的；离得越远罚得越狠，差 2 罚 4，差 4 罚 16。前面的 ½ 只是为了求导时约掉 2，不改变哪个预测更好。</p>
+  <p><b>分类用对数损失。</b>模型给出“是好瓜”的概率 <i class="m">p</i>。如果它真是好瓜（<i class="m">y</i> = 1），损失是 −ln <i class="m">p</i>；如果是坏瓜（<i class="m">y</i> = 0），损失是 −ln(1 − <i class="m">p</i>)。ln 是自然对数，你只要知道：ln 1 = 0，<i class="m">p</i> 越小 −ln <i class="m">p</i> 越大，<i class="m">p</i> 接近 0 时会冲得很大。说得越有把握、结果又错了，罚得越重。</p>
+
+  <figure class="fig" id="fig-loss">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 4</span><span class="fig-title">两种量误差的方法</span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="左边用正方形面积表示平方损失，右边是对数损失随概率变化的曲线"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="loss-yhat">回归预测 ŷ</label><input type="range" id="loss-yhat" min="0" max="10" step="0.1" value="3"><output for="loss-yhat">3.0</output></div>
+      <div class="param"><label for="loss-p">分类概率 p</label><input type="range" id="loss-p" min="0.01" max="0.99" step="0.01" value="0.8"><output for="loss-p">0.80</output></div>
+      <div class="seg-wrap"><span>这个瓜其实是</span><div class="seg" id="loss-y" role="group" aria-label="真实答案"><button type="button" data-v="1" aria-pressed="true">好瓜 y = 1</button><button type="button" data-v="0">坏瓜 y = 0</button></div></div>
+    </div>
+  </figure>
+
+  <p>整个数据集的损失，就是把每个样本的损失加起来：Σ<sub><i>i</i></sub> <i class="m">l</i>(<i class="m">y<sub>i</sub></i>, <i class="m">ŷ<sub>i</sub></i>)。正文目标函数 Obj 的第一项就是它。训练开始时每个瓜的 <i class="m">p</i> 都是 0.5，每个的损失都是 −ln 0.5 = 0.693，17 个瓜合计 11.78。</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section class="chapter prose" id="b5">
+  <div class="chapter-head"><span class="chapter-no">第 5 章</span><h2>分数怎么变成概率：sigmoid 和 log-odds</h2></div>
+  <p>对数损失需要一个 0 到 1 之间的概率 <i class="m">p</i>，可树输出的分数可正可负，加起来可能是 3.7，也可能是 −12。换算的工具是 sigmoid 函数：</p>
+  <div class="eq multi"><span class="eqp"><i>p</i> = σ(<i>z</i>) = <span class="frac"><span>1</span><span>1 + e<sup>−<i>z</i></sup></span></span></span><span class="note">e ≈ 2.718，是一个常数</span></div>
+  <p>不用记它怎么算，记住三点就够：<i class="m">z</i> = 0 时 <i class="m">p</i> = 0.5；<i class="m">z</i> 越大 <i class="m">p</i> 越接近 1，<i class="m">z</i> 越小 <i class="m">p</i> 越接近 0；不管 <i class="m">z</i> 多大多小，<i class="m">p</i> 都不会越过 0 和 1。</p>
+  <p>反过来，从 <i class="m">p</i> 算回 <i class="m">z</i> 是 <i class="m">z</i> = ln(<i class="m">p</i>/(1 − <i class="m">p</i>))，叫 log-odds（对数几率）。<i class="m">p</i>/(1 − <i class="m">p</i>) 是赔率：<i class="m">p</i> = 0.8 时赔率是 4，意思是“是好瓜”的可能性是“是坏瓜”的 4 倍。</p>
+
+  <figure class="fig" id="fig-sig">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 5</span><span class="fig-title">sigmoid：任意实数 z 进去，0 到 1 的概率 p 出来</span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="sigmoid 曲线，横轴 log-odds，纵轴概率，几棵树的分数依次加在横轴上"></canvas></div>
+    <div class="live"><dl class="readout" id="sig-read"></dl></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="sig-z">log-odds z</label><input type="range" id="sig-z" min="-6" max="6" step="0.05" value="1.386"><output for="sig-z">1.39</output></div>
+    </div>
+  </figure>
+
+  <p>所以 XGBoost 做分类时，所有树的分数都加在 <i class="m">z</i> 上，最后才用 σ 换成概率。在 <i class="m">z</i> 上怎么加减都不会越界，所以加法放在这里做。正文里的 <i class="m">ŷ</i> 在分类任务中就是这个 <i class="m">z</i>。</p>
+</section>
+
+<!-- ============ 6 ============ -->
+<section class="chapter prose" id="b6">
+  <div class="chapter-head"><span class="chapter-no">第 6 章</span><h2>导数：曲线在这一点有多陡</h2></div>
+  <p>导数回答一个问题：输入挪一点点，输出变多少？</p>
+  <p>把一个好瓜（<i class="m">y</i> = 1）的损失看成预测 <i class="m">ŷ</i> 的函数，画成一条曲线。在某个 <i class="m">ŷ</i> 处往右挪一小步 Δ<i class="m">ŷ</i>，损失变化 Δ<i class="m">l</i>，比值 Δ<i class="m">l</i>/Δ<i class="m">ŷ</i> 就是这一小段的平均坡度。步子越小，这个比值越稳定，最后稳定下来的那个数就是导数，也就是这一点切线的斜率。</p>
+  <p>正文把它写作 <i class="m cg">g</i> = ∂<i class="m">l</i>/∂<i class="m">ŷ</i>，念作“l 对 ŷ 的偏导”。“偏”的意思是只让 <i class="m">ŷ</i> 变，其他量（比如 <i class="m">y</i>）不动。可以把 ∂ 读成“一点点变化”。</p>
+
+  <figure class="fig" id="fig-deriv">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 6</span><span class="fig-title">从“挪一小步”到切线，再到二阶导</span>
+      <span class="fig-legend"><span><i class="sw ln" style="background:var(--ink)"></i>损失</span><span><i class="sw ln" style="background:var(--g)"></i>斜率 g</span><span><i class="sw ln" style="background:var(--h)"></i>斜率的斜率 h</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="上图为损失曲线及割线和切线，下图为斜率曲线"></canvas></div>
+    <div class="live"><dl class="readout" id="deriv-read"></dl></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="deriv-m">当前预测 ŷ</label><input type="range" id="deriv-m" min="-3.5" max="3.5" step="0.05" value="-1"><output for="deriv-m">−1.00</output></div>
+    </div>
+  </figure>
+
+  <p>导数的正负告诉你方向：<i class="m cg">g</i> &lt; 0 说明把 <i class="m">ŷ</i> 调大损失会下降，<i class="m cg">g</i> &gt; 0 就该调小。沿着 −<i class="m cg">g</i> 的方向走，叫梯度下降。</p>
+  <p>导数本身也随 <i class="m">ŷ</i> 变化。把每个位置的导数画成一条新曲线，再求一次导，就是二阶导 <i class="m ch">h</i> = ∂²<i class="m">l</i>/∂<i class="m">ŷ</i>²（右上角的 2 表示“求两次”）。它描述原曲线弯得多厉害：<i class="m ch">h</i> 大，曲线弯得急；<i class="m ch">h</i> 接近 0，曲线几乎是直的。对数损失的两个导数正好很简单：<i class="m cg">g</i> = <i class="m">p</i> − <i class="m">y</i>，<i class="m ch">h</i> = <i class="m">p</i>(1 − <i class="m">p</i>)。图里用“挪一小步”算出来的数和它们一致。</p>
+</section>
+
+<!-- ============ 7 ============ -->
+<section class="chapter prose" id="b7">
+  <div class="chapter-head"><span class="chapter-no">第 7 章</span><h2>抛物线的最低点：整篇正文最关键的一步</h2></div>
+  <p>这一步初中就学过：当 <i class="m">a</i> &gt; 0 时，抛物线 <i class="m">a</i>·<i class="m">w</i>² + <i class="m">b</i>·<i class="m">w</i> 开口朝上，在 <i class="m">w</i> = −<i class="m">b</i>/(2<i class="m">a</i>) 处最低，最低值是 −<i class="m">b</i>²/(4<i class="m">a</i>)。</p>
+  <p>为什么？最低点处曲线是平的，切线斜率为 0。这条抛物线的导数是 2<i class="m">a</i>·<i class="m">w</i> + <i class="m">b</i>（第 6 章），令它等于 0，就解出 <i class="m">w</i> = −<i class="m">b</i>/(2<i class="m">a</i>)。</p>
+
+  <figure class="fig" id="fig-para">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 7</span><span class="fig-title">一片叶子要找的，就是这条抛物线的最低点</span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="抛物线、滚向最低点的小球，以及最低点的坐标"></canvas></div>
+    <div class="live"><div class="eqlive" id="para-eq"></div></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="para-G">G（g 之和）</label><input type="range" id="para-G" min="-4" max="4" step="0.1" value="3"><output for="para-G">3.0</output></div>
+      <div class="param"><label for="para-H">H（h 之和）</label><input type="range" id="para-H" min="0.2" max="5" step="0.05" value="2"><output for="para-H">2.00</output></div>
+      <div class="param"><label for="para-lam">λ</label><input type="range" id="para-lam" min="0" max="5" step="0.1" value="1"><output for="para-lam">1.0</output></div>
+      <span class="param-note">默认值来自正文第 4 章的左叶：8 个瓜，G = 3.0，H = 2.0。</span>
+    </div>
+  </figure>
+
+  <p>XGBoost 每片叶子要最小化的，正好是一条这样的抛物线：<i class="m cg">G</i>·<i class="m">w</i> + ½(<i class="m ch">H</i> + <i class="m">λ</i>)·<i class="m">w</i>²，其中 <i class="m cg">G</i>、<i class="m ch">H</i> 是这片叶子里所有样本的 <i class="m cg">g</i>、<i class="m ch">h</i> 之和。对照一下，<i class="m">a</i> = ½(<i class="m ch">H</i> + <i class="m">λ</i>)，<i class="m">b</i> = <i class="m cg">G</i>，代进去：</p>
+  <div class="eq multi"><span class="eqp"><i>w</i>* = − <span class="frac"><span><i class="cg">G</i></span><span>2 · ½(<i class="ch">H</i> + <i>λ</i>)</span></span> = − <span class="frac"><span><i class="cg">G</i></span><span><i class="ch">H</i> + <i>λ</i></span></span></span><span class="eqp">最低值 = − <span class="frac"><span><i class="cg">G</i><sup>2</sup></span><span>4 · ½(<i class="ch">H</i> + <i>λ</i>)</span></span> = − <span class="frac"><span>1</span><span>2</span></span> · <span class="frac"><span><i class="cg">G</i><sup>2</sup></span><span><i class="ch">H</i> + <i>λ</i></span></span></span></div>
+  <p class="key">这两行就是正文第 4 章的叶子权重公式和结构分数。看懂了这一章，正文里最长的 Gain 公式也只是“切开后两片叶子的最低值”和“不切时的最低值”相减。</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section class="chapter prose" id="b8">
+  <div class="chapter-head"><span class="chapter-no">第 8 章</span><h2>泰勒展开：用抛物线冒充一条曲线</h2></div>
+  <p>对数损失的曲线不是抛物线，没法直接套第 7 章的公式。XGBoost 的办法是：在当前这一点附近，找一条抛物线冒充它。怎么找？一层一层加信息。</p>
+  <ul>
+    <li><b>0 阶：</b>只知道当前的值 <i class="m">l</i><sub>0</sub>。用一条水平线去猜，离开一点就不准。</li>
+    <li><b>1 阶：</b>再加上斜率 <i class="m cg">g</i>，得到切线 <i class="m">l</i><sub>0</sub> + <i class="m cg">g</i>·<i class="m">f</i>（<i class="m">f</i> 是往前挪的距离）。近处准，远了偏。</li>
+    <li><b>2 阶：</b>再加上弯曲程度 <i class="m ch">h</i>，得到抛物线 <i class="m">l</i><sub>0</sub> + <i class="m cg">g</i>·<i class="m">f</i> + ½<i class="m ch">h</i>·<i class="m">f</i>²。它在这一点的值、斜率、弯曲都和真曲线一样，能贴得更久。</li>
+  </ul>
+
+  <figure class="fig" id="fig-taylor2">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 8</span><span class="fig-title">0 阶、1 阶、2 阶：猜得越来越准</span>
+      <span class="fig-legend"><span><i class="sw ln" style="background:var(--ink)"></i>真实损失</span><span><i class="sw ln" style="background:var(--muted)"></i>0 阶</span><span><i class="sw ln" style="background:var(--g)"></i>1 阶</span><span><i class="sw ln" style="background:var(--h)"></i>2 阶</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="损失曲线和三种近似，以及往前走一段距离后各自的误差"></canvas></div>
+    <div class="live"><dl class="readout" id="tay-read"></dl></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="tay-m">当前预测 ŷ</label><input type="range" id="tay-m" min="-3" max="2" step="0.05" value="-1"><output for="tay-m">−1.00</output></div>
+      <div class="param"><label for="tay-f">往前走 f</label><input type="range" id="tay-f" min="0" max="3" step="0.05" value="1"><output for="tay-f">1.00</output></div>
+    </div>
+  </figure>
+
+  <p>这就是二阶泰勒展开。½ 是展开式第二项固定的系数，和第 7 章抛物线里的 ½ 是同一个 ½。</p>
+  <p class="key">为什么非要换成抛物线？因为抛物线的最低点我们会算。XGBoost 把每个样本的损失都换成抛物线，一片叶子里的抛物线加起来还是抛物线，于是这片叶子该填多少分，一个公式就算出来了。</p>
+</section>
+
+<!-- ============ 9 ============ -->
+<section class="chapter prose" id="b9">
+  <div class="chapter-head"><span class="chapter-no">第 9 章</span><h2>正则化：给复杂度打分</h2></div>
+  <p>如果只追求训练误差最小，最“好”的树是把每个训练样本都单独分进一片叶子、分数还定得很极端的树。它把训练集背了下来，换一批瓜就不灵了，这叫过拟合。</p>
+  <p>XGBoost 在目标函数里加了一项复杂度罚分：</p>
+  <div class="eq multi"><span class="eqp">Obj = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> <i>l</i>(<i>y<sub>i</sub></i>, <i>ŷ<sub>i</sub></i>) + Ω(<i>f</i>)</span><span class="eqp">Ω(<i>f</i>) = <i>γT</i> + <span class="frac"><span>1</span><span>2</span></span><i>λ</i> <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> <i>w<sub>j</sub></i><sup>2</sup></span></div>
+  <p>现在它应该能念出来了。Ω 分两部分：<i class="m">γT</i> 是每片叶子收 <i class="m">γ</i> 的罚金，叶子越多罚得越多；½<i class="m">λ</i>Σ<i class="m">w<sub>j</sub></i>² 是把每片叶子分数的平方加起来再乘 ½<i class="m">λ</i>，分数越极端罚得越多。用平方是因为它总是正的，而且分数翻倍、罚分变成 4 倍。</p>
+
+  <figure class="fig" id="fig-reg">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 9</span><span class="fig-title">三棵候选树比总分：训练误差 + 罚分</span>
+      <span class="fig-legend"><span><i class="sw sq" style="background:var(--ink-2)"></i>训练误差</span><span><i class="sw sq" style="background:var(--h)"></i>γT</span><span><i class="sw sq" style="background:var(--g)"></i>½λΣw²</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="三棵候选树的结构，以及它们的训练误差和两项罚分叠成的总分"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="reg-gam">γ</label><input type="range" id="reg-gam" min="0" max="3" step="0.1" value="0.5"><output for="reg-gam">0.5</output></div>
+      <div class="param"><label for="reg-lam">λ</label><input type="range" id="reg-lam" min="0" max="3" step="0.1" value="1"><output for="reg-lam">1.0</output></div>
+      <span class="param-note">XGBoost 的默认值是 γ = 0、λ = 1。这里把 γ 设成 0.5，好让叶子数的罚分能看得见。</span>
+    </div>
+  </figure>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="chapter prose" id="b10">
+  <div class="chapter-head"><span class="chapter-no">第 10 章</span><h2>公式翻译器：把正文的公式逐个念一遍</h2></div>
+  <p>点上面的标签切换公式，点公式里的任何一块看它是什么意思。每个公式最后一步都代入西瓜数据第一轮的真实数字，和正文完全一致。</p>
+
+  <figure class="fig" id="fig-trans">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 10</span><span class="fig-title">正文的八个公式</span>
+    </figcaption>
+    <div class="tabs" id="trans-tabs" role="group" aria-label="选择公式"></div>
+    <div class="anat-main" style="padding-bottom:14px">
+      <div class="formula" id="trans-f"></div>
+      <div class="say" id="trans-say"></div>
+    </div>
+    <pre class="code" id="trans-code"></pre>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+  </figure>
+
+  <div class="next">
+    <span>这些都认识了，就可以回去看正文。</span>
+    <a href="index.html">打开《XGBoost 动画图解》→</a>
+  </div>
+
+  <footer class="foot">
+    <p>数字来源：西瓜数据集 3.0α（周志华《机器学习》），参数与正文相同：η = 0.3，λ = 1，γ = 0，max_depth = 3，min_child_weight = 0.5，base_score = 0.5。</p>
+  </footer>
+</section>
+</main>
+</div>
+<script>
+(() => {
+'use strict';
+/* =====================================================================
+   XGBoost 动画图解 · core
+   ===================================================================== */
+const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/* ---------- small math & format helpers ---------- */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const lerpArr = (A, B, t) => A.map((a, i) => a + (B[i] - a) * t);
+const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const sub01 = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
+const sum = a => a.reduce((s, v) => s + v, 0);
+const mean = a => sum(a) / a.length;
+const f32 = Math.fround;
+const MINUS = '−';
+function fmt(v, d = 3) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const z = (0).toFixed(d);
+  let s = v.toFixed(d);
+  if (s === '-' + z) s = z;
+  return s.replace('-', MINUS);
+}
+const fmtS = (v, d = 3) => { const s = fmt(v, d); return v > 0 && s !== (0).toFixed(d) ? '+' + s : s; };
+const par = (v, d = 3) => (v < 0 ? '(' + fmt(v, d) + ')' : fmt(v, d));
+const $ = (sel, root = document) => root.querySelector(sel);
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function gauss(rng) { let u = 0; while (u === 0) u = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng()); }
+
+/* ---------- theme tokens (read from CSS) ---------- */
+const C = {};
+const TOKENS = ['paper', 'plate', 'plate-2', 'ink', 'ink-2', 'muted', 'faint', 'rule', 'grid', 'g', 'h', 'pos', 'neg', 'mark'];
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of TOKENS) C[k.replace('-', '')] = (cs.getPropertyValue('--' + k) || '').trim() || '#888888';
+}
+const rgbCache = new Map();
+function A(hex, a) {
+  let rgb = rgbCache.get(hex);
+  if (!rgb) {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    rgb = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    rgbCache.set(hex, rgb);
+  }
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+}
+const signCol = v => (v >= 0 ? C.pos : C.neg);
+
+/* ---------- canvas fonts ---------- */
+const FF = {
+  mono: '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  sans: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif',
+  math: '"STIX Two Text", "Times New Roman", serif',
+};
+const fMono = (s, w = 400) => `${w} ${s}px ${FF.mono}`;
+const fSans = (s, w = 400) => `${w} ${s}px ${FF.sans}`;
+const fMath = (s, it = true) => `${it ? 'italic ' : ''}400 ${s}px ${FF.math}`;
+
+/* ---------- canvas stage ---------- */
+const ALL = [];   // every figure: { render() }
+class Stage {
+  constructor(canvas, heightFor) {
+    this.cv = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.heightFor = heightFor;
+    this.w = 0; this.h = 0;
+    this.onResize = null;
+    this.resize();
+    if (window.ResizeObserver) new ResizeObserver(() => { if (this.resize() && this.onResize) this.onResize(); }).observe(canvas.parentElement);
+  }
+  resize() {
+    const w = Math.max(240, Math.round(this.cv.parentElement.clientWidth));
+    const h = Math.round(this.heightFor(w));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (w === this.w && h === this.h && this.dpr === dpr) return false;
+    this.w = w; this.h = h; this.dpr = dpr;
+    this.cv.style.height = h + 'px';
+    this.cv.width = Math.round(w * dpr);
+    this.cv.height = Math.round(h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return true;
+  }
+  clear() {
+    const c = this.ctx;
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.cv.width, this.cv.height); c.restore();
+    c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    c.lineCap = 'butt'; c.lineJoin = 'miter'; c.setLineDash([]); c.globalAlpha = 1; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  }
+  pointer(e) { const r = this.cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+}
+
+/* ---------- timeline player ---------- */
+const ICON = {
+  reset: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 2.8v3.9h3.9"/><path d="M3.2 6.6A5.2 5.2 0 1 1 3.6 10.4"/></svg>',
+  prev: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3h1.7v10H3.5zM13 3.3v9.4L6.4 8z"/></svg>',
+  next: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.8 3h1.7v10h-1.7zM3 3.3v9.4L9.6 8z"/></svg>',
+  play: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.2 2.6v10.8L13 8z"/></svg>',
+  pause: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.6h3v10.8H4zM9 2.6h3v10.8H9z"/></svg>',
+};
+class Timeline {
+  constructor(fig, build, draw) {
+    this.fig = fig; this.build = build; this.drawFn = draw;
+    this.t = 0; this.playing = false; this.stopAt = null; this.raf = 0; this.cur = -1; this.started = false;
+    this.cap = fig.querySelector('.caption');
+    const bar = fig.querySelector('.controls');
+    bar.innerHTML =
+      '<div class="tl-buttons">' +
+      `<button type="button" class="btn" data-a="reset" title="从头开始" aria-label="从头开始">${ICON.reset}</button>` +
+      `<button type="button" class="btn" data-a="prev" title="上一步" aria-label="上一步">${ICON.prev}</button>` +
+      `<button type="button" class="btn primary" data-a="play" aria-label="播放">${ICON.play}<span>播放</span></button>` +
+      `<button type="button" class="btn" data-a="next" title="下一步" aria-label="下一步">${ICON.next}</button>` +
+      '</div>' +
+      `<input class="scrub" type="range" id="${fig.id}-scrub" min="0" max="1000" step="1" value="0" aria-label="时间轴">` +
+      '<span class="tl-count mono" aria-hidden="true"></span>';
+    this.playBtn = bar.querySelector('[data-a="play"]');
+    this.scrub = bar.querySelector('.scrub');
+    this.count = bar.querySelector('.tl-count');
+    bar.addEventListener('click', e => {
+      const b = e.target.closest('button[data-a]');
+      if (!b) return;
+      this.started = true;
+      if (this.onControl) this.onControl();
+      const a = b.dataset.a;
+      if (a === 'play') (this.playing && this.stopAt === null ? this.pause() : this.play());
+      else if (a === 'next') this.next();
+      else if (a === 'prev') this.prev();
+      else this.reset();
+    });
+    this.scrub.addEventListener('input', () => {
+      this.started = true; this.pause();
+      if (this.onControl) this.onControl();
+      this.t = (+this.scrub.value / 1000) * this.total;
+      this.render();
+    });
+    this.rebuild('start');
+  }
+  rebuild(mode = 'keep') {
+    const prev = this.cur;
+    this.segs = this.build();
+    this.starts = [];
+    let acc = 0;
+    for (const s of this.segs) {
+      if (s.dur === undefined) s.dur = 800;
+      if (s.hold === undefined) s.hold = 1200;
+      this.starts.push(acc); acc += s.dur + s.hold;
+    }
+    this.total = acc;
+    if (mode === 'start') this.t = this.home();
+    else if (mode === 'end') this.t = this.total;
+    else { const i = clamp(prev < 0 ? 0 : prev, 0, this.segs.length - 1); this.t = this.starts[i] + this.segs[i].dur; }
+    if (mode !== 'keep') { this.playing = false; this.stopAt = null; cancelAnimationFrame(this.raf); this.setBtn(); }
+    this.cur = -1;
+    this.render();
+  }
+  home() { return this.segs.length ? this.segs[0].dur : 0; } // first step at rest: never an empty frame
+  locate(t) {
+    let i = this.segs.length - 1;
+    for (let k = 0; k < this.segs.length; k++) {
+      if (t < this.starts[k] + this.segs[k].dur + this.segs[k].hold) { i = k; break; }
+    }
+    const s = this.segs[i];
+    const p = RM ? 1 : clamp((t - this.starts[i]) / Math.max(1, s.dur), 0, 1);
+    return { i, p };
+  }
+  render() {
+    if (!this.segs || !this.segs.length) return;
+    const { i, p } = this.locate(this.t);
+    const s = this.segs[i];
+    if (i !== this.cur || s._dirty) {
+      this.cur = i; s._dirty = false;
+      this.cap.innerHTML = (s.title ? `<span class="tt">${s.title}</span>` : '') + (s.text || '');
+    }
+    this.count.textContent = `${i + 1} / ${this.segs.length}`;
+    this.scrub.value = String(Math.round((this.t / Math.max(1, this.total)) * 1000));
+    this.drawFn(i, p, s);
+  }
+  setBtn() {
+    const on = this.playing && this.stopAt === null;
+    this.playBtn.innerHTML = on ? ICON.pause + '<span>暂停</span>' : ICON.play + '<span>播放</span>';
+    this.playBtn.setAttribute('aria-label', on ? '暂停' : '播放');
+  }
+  loop() {
+    cancelAnimationFrame(this.raf);
+    let last = performance.now();
+    const step = now => {
+      if (!this.playing) return;
+      const dt = Math.min(80, now - last);
+      last = now;
+      this.t += dt;
+      if (this.stopAt !== null && this.t >= this.stopAt) { this.t = this.stopAt; this.playing = false; this.stopAt = null; this.setBtn(); }
+      else if (this.t >= this.total) { this.t = this.total; this.playing = false; this.setBtn(); }
+      this.render();
+      if (this.playing) this.raf = requestAnimationFrame(step);
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+  play() {
+    if (this.t >= this.total - 1) this.t = 0;
+    this.playing = true; this.stopAt = null; this.setBtn(); this.loop();
+  }
+  pause() { this.playing = false; this.stopAt = null; cancelAnimationFrame(this.raf); this.setBtn(); }
+  reset() { this.pause(); this.t = this.home(); this.render(); }
+  next() {
+    if (this.playing && this.stopAt === null) this.pause();
+    if (this.playing && this.stopAt !== null) { this.t = this.stopAt; this.playing = false; this.stopAt = null; }
+    const { i } = this.locate(this.t);
+    const endI = this.starts[i] + this.segs[i].dur;
+    if (this.t < endI - 0.5) { this.t = endI; this.setBtn(); this.render(); return; }
+    if (i >= this.segs.length - 1) { this.t = this.total; this.setBtn(); this.render(); return; }
+    this.t = this.starts[i + 1];
+    const stop = this.starts[i + 1] + this.segs[i + 1].dur;
+    if (RM) { this.t = stop; this.setBtn(); this.render(); return; }
+    this.stopAt = stop; this.playing = true; this.setBtn(); this.loop();
+  }
+  prev() {
+    this.pause();
+    const { i } = this.locate(this.t);
+    this.t = i === 0 ? this.home() : this.starts[i - 1] + this.segs[i - 1].dur;
+    this.render();
+  }
+  autoplay() { if (!this.started && !RM) { this.started = true; this.play(); } }
+  jump(i) { this.started = true; this.pause(); i = clamp(i, 0, this.segs.length - 1); this.t = this.starts[i] + this.segs[i].dur; this.render(); }
+}
+
+/* ---------- form helpers ---------- */
+function bindRange(id, show, onInput) {
+  const el = document.getElementById(id);
+  const out = el.parentElement.querySelector('output');
+  const upd = () => { if (out) out.textContent = show(+el.value); };
+  el.addEventListener('input', () => { upd(); onInput(+el.value); });
+  upd();
+  return el;
+}
+function bindSeg(id, onChange) {
+  const el = document.getElementById(id);
+  const btns = [...el.querySelectorAll('button[data-v]')];
+  btns.forEach(b => { if (!b.hasAttribute('aria-pressed')) b.setAttribute('aria-pressed', 'false'); });
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]');
+    if (!b || b.getAttribute('aria-pressed') === 'true') return;
+    btns.forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    onChange(b.dataset.v);
+  });
+  return el;
+}
+
+/* =====================================================================
+   mini XGBoost — exact greedy, depthwise, sparsity-aware, bottom-up prune.
+   Checked tree-by-tree against xgboost 3.2 (tree_method="exact").
+   Gain here follows the paper: ½·[GL²/(HL+λ) + GR²/(HR+λ) − G²/(H+λ)] − γ.
+   ===================================================================== */
+const sigmoid = z => 1 / (1 + Math.exp(-z));
+const LOSS = {
+  squared: {
+    grad: (y, m) => m - y,
+    hess: () => 1,
+    loss: (y, m) => 0.5 * (y - m) * (y - m),
+  },
+  logistic: {
+    grad: (y, m) => sigmoid(m) - y,
+    hess: (y, m) => { const p = sigmoid(m); return Math.max(p * (1 - p), 1e-16); },
+    loss: (y, m) => { const p = clamp(sigmoid(m), 1e-15, 1 - 1e-15); return -(y * Math.log(p) + (1 - y) * Math.log(1 - p)); },
+  },
+};
+const nodeScore = (G, H, P) => (H < P.mcw || H <= 0 ? 0 : (G * G) / (H + P.lambda));
+const nodeWeight = (G, H, P) => (H < P.mcw || H <= 0 ? 0 : -G / (H + P.lambda));
+const isMissing = v => v === null || v !== v;
+
+function scanFeature(X, g, h, idx, f, P, G, H, sparse) {
+  const present = idx.filter(i => !isMissing(X[i][f])).sort((a, b) => X[a][f] - X[b][f]);
+  const miss = idx.filter(i => isMissing(X[i][f]));
+  const parent = f32(nodeScore(G, H, P));
+  const evalSplit = (GL, HL, extra) => {
+    const GR = G - GL, HR = H - HL;
+    const valid = HL >= P.mcw && HR >= P.mcw;
+    const lossChg = valid ? f32(nodeScore(GL, HL, P) + nodeScore(GR, HR, P) - parent) : NaN;
+    return Object.assign({ GL, HL, GR, HR, valid, lossChg, gain: valid ? 0.5 * lossChg - P.gamma : NaN }, extra);
+  };
+  const passes = [];
+  const n = present.length;
+  if (sparse) { // missing -> right
+    const c = []; let GL = 0, HL = 0;
+    for (let k = 0; k < n; k++) {
+      const i = present[k]; GL += g[i]; HL += h[i];
+      const a = X[i][f];
+      if (k < n - 1) { const b = X[present[k + 1]][f]; if (a !== b) c.push(evalSplit(GL, HL, { k: k + 1, thr: (a + b) / 2, defaultLeft: false })); }
+      else if (miss.length) c.push(evalSplit(GL, HL, { k: n, thr: a + Math.abs(a) + 1e-6, defaultLeft: false, edge: true }));
+    }
+    passes.push(c);
+  }
+  { // missing -> left (the only pass for dense columns)
+    const c = []; let GR = 0, HR = 0;
+    for (let k = n - 1; k >= 0; k--) {
+      const i = present[k]; GR += g[i]; HR += h[i];
+      const b = X[i][f];
+      if (k > 0) { const a = X[present[k - 1]][f]; if (a !== b) c.push(evalSplit(G - GR, H - HR, { k, thr: (a + b) / 2, defaultLeft: true })); }
+      else if (miss.length) c.push(evalSplit(G - GR, H - HR, { k: 0, thr: b - Math.abs(b) - 1e-6, defaultLeft: true, edge: true }));
+    }
+    passes.push(c);
+  }
+  let best = null;
+  for (const c of passes) for (const s of c) if (s.valid && s.lossChg > (best ? best.lossChg : 1e-6)) best = s;
+  return { f, present, miss, passes, best };
+}
+
+function buildTree(X, g, h, P) {
+  const nFeat = X[0].length, nodes = [];
+  const sparseCol = [...Array(nFeat)].map((_, f) => X.some(r => isMissing(r[f])));
+  const goLeft = (node, x) => (isMissing(x[node.f]) ? node.defaultLeft : x[node.f] < node.thr);
+  function grow(idx, depth, parent) {
+    let G = 0, H = 0;
+    for (const i of idx) { G += g[i]; H += h[i]; }
+    const node = { id: nodes.length, idx, G, H, depth, parent, w: nodeWeight(G, H, P), leaf: true, split: false, scans: null };
+    nodes.push(node);
+    if (depth >= P.maxDepth) { node.why = 'depth'; return node; }
+    node.scans = [];
+    let best = null;
+    for (let f = 0; f < nFeat; f++) {
+      const s = scanFeature(X, g, h, idx, f, P, G, H, sparseCol[f]);
+      node.scans.push(s);
+      if (s.best && (!best || s.best.lossChg > best.lossChg)) best = Object.assign({}, s.best, { f });
+    }
+    if (best) {
+      Object.assign(node, { leaf: false, split: true, f: best.f, thr: best.thr, defaultLeft: best.defaultLeft, lossChg: best.lossChg, gain: 0.5 * best.lossChg - P.gamma });
+      node.left = grow(idx.filter(i => goLeft(node, X[i])), depth + 1, node);
+      node.right = grow(idx.filter(i => !goLeft(node, X[i])), depth + 1, node);
+    } else {
+      const anyCand = node.scans.some(s => s.passes.some(c => c.length));
+      const anyValid = node.scans.some(s => s.passes.some(c => c.some(x => x.valid)));
+      node.why = !anyCand ? 'single' : !anyValid ? 'mcw' : 'gain';
+    }
+    return node;
+  }
+  const root = grow(X.map((_, i) => i), 0, null);
+  const drop = n => { if (!n) return; n.removed = true; drop(n.left); drop(n.right); };
+  (function prune(n) {
+    if (n.leaf) return;
+    prune(n.left); prune(n.right);
+    if (n.left.leaf && n.right.leaf && n.gain < 0) { n.leaf = true; n.pruned = true; drop(n.left); drop(n.right); }
+  })(root);
+  // breadth-first ids, the way XGBoost numbers nodes
+  const bfs = [root];
+  for (let k = 0; k < bfs.length; k++) { const n = bfs[k]; n.bid = k; if (n.split) bfs.push(n.left, n.right); }
+  const leafOf = x => { let n = root; while (!n.leaf) n = goLeft(n, x) ? n.left : n.right; return n; };
+  const pathOf = x => { const p = [root]; let n = root; while (!n.leaf) { n = goLeft(n, x) ? n.left : n.right; p.push(n); } return p; };
+  return { root, nodes, bfs, leafOf, pathOf, goLeft };
+}
+
+function trainModel(X, y, P, rounds, lossName, base) {
+  const L = LOSS[lossName], n = y.length;
+  let m = new Array(n).fill(base);
+  const hist = [];
+  for (let t = 0; t < rounds; t++) {
+    const g = y.map((yi, i) => f32(L.grad(yi, m[i]))), h = y.map((yi, i) => f32(L.hess(yi, m[i])));
+    const tree = buildTree(X, g, h, P);
+    const before = m.slice();
+    m = m.map((mi, i) => mi + P.eta * tree.leafOf(X[i]).w);
+    hist.push({ g, h, tree, before, after: m.slice(), loss: y.reduce((s, yi, i) => s + L.loss(yi, m[i]), 0) / n });
+  }
+  return hist;
+}
+
+/* ---------- data ---------- */
+// 西瓜数据集 3.0α（周志华《机器学习》）：密度、含糖率、好瓜
+const MELON = [
+  [0.697, 0.460, 1], [0.774, 0.376, 1], [0.634, 0.264, 1], [0.608, 0.318, 1], [0.556, 0.215, 1],
+  [0.403, 0.237, 1], [0.481, 0.149, 1], [0.437, 0.211, 1], [0.666, 0.091, 0], [0.243, 0.267, 0],
+  [0.245, 0.057, 0], [0.343, 0.099, 0], [0.639, 0.161, 0], [0.657, 0.198, 0], [0.360, 0.370, 0],
+  [0.593, 0.042, 0], [0.719, 0.103, 0],
+];
+const MX = MELON.map(r => [r[0], r[1]]);
+const MY = MELON.map(r => r[2]);
+const NM = MELON.length;
+const ALLIDX = MX.map((_, i) => i);
+const FEAT = ['密度', '含糖率'];
+const DEMO = { eta: 0.3, lambda: 1, gamma: 0, maxDepth: 3, mcw: 0.5 };
+const DOM = [[0.2, 0.8], [0, 0.5]]; // plotting domain for 密度 / 含糖率
+const G1 = MY.map(y => f32(0.5 - y)); // first-round gradients (p = 0.5)
+const H1 = MY.map(() => 0.25);
+
+// 一天 48 个半小时点的用电负荷（GW），早晚两个高峰 + 噪声
+const LOAD = (() => {
+  const rng = mulberry32(20240517);
+  const f = hr => 22 + 5.5 * Math.exp(-(((hr - 10.5) / 2.6) ** 2)) + 8 * Math.exp(-(((hr - 19.5) / 2.3) ** 2)) - 3.5 * Math.exp(-(((hr - 4) / 2.5) ** 2));
+  const x = [], y = [];
+  for (let i = 0; i < 48; i++) { const hr = i * 0.5; x.push(hr); y.push(Math.round((f(hr) + 0.7 * gauss(rng)) * 100) / 100); }
+  return { x, y };
+})();
+
+// 200 个模拟西瓜（直方图演示）
+const MANY = (() => {
+  const rng = mulberry32(99);
+  const rows = [];
+  for (let i = 0; i < 200; i++) {
+    const good = i % 20 < 11 ? 1 : 0;
+    const s = clamp((good ? 0.27 : 0.15) + (good ? 0.085 : 0.075) * gauss(rng), 0.01, 0.49);
+    const d = clamp((good ? 0.56 : 0.44) + 0.12 * gauss(rng), 0.21, 0.79);
+    rows.push([Math.round(d * 1000) / 1000, Math.round(s * 1000) / 1000, good, rng()]);
+  }
+  return rows;
+})();
+
+/* ---------- drawing helpers ---------- */
+const rect = (x, y, w, h) => ({ x, y, w, h, r: x + w, b: y + h });
+function scale(d0, d1, r0, r1) {
+  const k = (r1 - r0) / (d1 - d0);
+  const f = v => r0 + (v - d0) * k;
+  f.inv = p => d0 + (p - r0) / k;
+  return f;
+}
+function ticks(a, b, n) {
+  const span = b - a, raw = span / Math.max(1, n);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const st = [1, 2, 2.5, 5, 10].map(k => k * mag).find(k => k >= raw) || raw;
+  const out = [];
+  for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9; v += st) out.push(Math.round(v / st) * st);
+  return out;
+}
+function line(ctx, x1, y1, x2, y2, col, lw = 1, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function text(ctx, s, x, y, font, col, align = 'left', base = 'alphabetic') {
+  ctx.font = font; ctx.fillStyle = col; ctx.textAlign = align; ctx.textBaseline = base; ctx.fillText(s, x, y);
+}
+function rr(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, col, lw = 1.6, head = 7) {
+  const a = Math.atan2(y2 - y1, x2 - x1), len = Math.hypot(x2 - x1, y2 - y1);
+  if (len < 1) return;
+  const hh = Math.min(head, len * 0.6);
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(a) * hh * 0.8, y2 - Math.sin(a) * hh * 0.8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hh * Math.cos(a - 0.42), y2 - hh * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hh * Math.cos(a + 0.42), y2 - hh * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fill();
+}
+// graph-paper plot area with axes
+function axes(ctx, R, sx, sy, o = {}) {
+  ctx.save();
+  ctx.fillStyle = C.plate2; ctx.fillRect(R.x, R.y, R.w, R.h);
+  ctx.lineWidth = 1;
+  for (const t of o.xt || []) { const x = Math.round(sx(t)) + 0.5; line(ctx, x, R.y, x, R.b, C.grid); }
+  for (const t of o.yt || []) { const y = Math.round(sy(t)) + 0.5; line(ctx, R.x, y, R.r, y, C.grid); }
+  if (o.zeroY !== undefined) { const y = Math.round(sy(o.zeroY)) + 0.5; line(ctx, R.x, y, R.r, y, C.faint); }
+  line(ctx, R.x, Math.round(R.b) + 0.5, R.r, Math.round(R.b) + 0.5, C.rule);
+  line(ctx, Math.round(R.x) + 0.5, R.y, Math.round(R.x) + 0.5, R.b, C.rule);
+  const xf = o.xf || (v => String(v)), yf = o.yf || (v => String(v));
+  if (o.xLabels !== false) for (const t of o.xt || []) text(ctx, xf(t), sx(t), R.b + 14, fMono(10), C.muted, 'center');
+  for (const t of o.yt || []) text(ctx, yf(t), R.x - 6, sy(t) + 3.5, fMono(10), C.muted, 'right');
+  if (o.xl) text(ctx, o.xl, R.r, R.b + (o.xLabels === false ? 14 : 28), fSans(11.5), C.muted, 'right');
+  if (o.yl) text(ctx, o.yl, R.x + 6, R.y + 14, fSans(11.5, 500), C.ink2, 'left');
+  ctx.restore();
+}
+function plotFn(ctx, f, x0, x1, sx, sy, n = 160) {
+  ctx.beginPath();
+  for (let k = 0; k <= n; k++) {
+    const x = x0 + ((x1 - x0) * k) / n, y = f(x);
+    const px = sx(x), py = sy(y);
+    if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+}
+// melon marker: good = circle, bad = square
+function melon(ctx, x, y, good, r = 4.6, alpha = 1, ring) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = good ? C.pos : C.neg;
+  ctx.strokeStyle = C.plate; ctx.lineWidth = 1.5;
+  if (good) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  else { const s = r * 1.7; ctx.beginPath(); ctx.rect(x - s / 2, y - s / 2, s, s); ctx.fill(); ctx.stroke(); }
+  if (ring) { ctx.beginPath(); ctx.arc(x, y, r + 3.5, 0, Math.PI * 2); ctx.strokeStyle = ring; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+// shaded probability / score map over the melon feature space
+function shadeMap(ctx, R, sx, sy, valueAt, maxA = 0.34, scaleV = 3) {
+  const nx = 60, ny = 50;
+  const cw = R.w / nx, ch = R.h / ny;
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      const x = DOM[0][0] + ((i + 0.5) / nx) * (DOM[0][1] - DOM[0][0]);
+      const y = DOM[1][0] + ((j + 0.5) / ny) * (DOM[1][1] - DOM[1][0]);
+      const v = valueAt(x, y, i, j);
+      if (!v) continue;
+      const a = Math.min(1, Math.abs(v) / scaleV) * maxA;
+      ctx.fillStyle = A(v > 0 ? C.pos : C.neg, a);
+      ctx.fillRect(R.x + i * cw, R.b - (j + 1) * ch, cw + 0.6, ch + 0.6);
+    }
+  }
+}
+function melonAxes(ctx, R, o = {}) {
+  const sx = scale(DOM[0][0], DOM[0][1], R.x, R.r), sy = scale(DOM[1][0], DOM[1][1], R.b, R.y);
+  axes(ctx, R, sx, sy, Object.assign({ xt: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8], yt: [0, 0.1, 0.2, 0.3, 0.4, 0.5], xf: v => v.toFixed(1), yf: v => v.toFixed(1), xl: '密度 →', yl: '含糖率' }, o));
+  return { sx, sy };
+}
+// axis-aligned regions of every node of a tree (in data coordinates)
+function regions(root) {
+  const out = new Map();
+  (function walk(n, box) {
+    out.set(n, box);
+    if (!n.split) return;
+    const L = box.slice(), R = box.slice();
+    if (n.f === 0) { L[1] = Math.min(L[1], n.thr); R[0] = Math.max(R[0], n.thr); }
+    else { L[3] = Math.min(L[3], n.thr); R[2] = Math.max(R[2], n.thr); }
+    walk(n.left, L); walk(n.right, R);
+  })(root, [DOM[0][0], DOM[0][1], DOM[1][0], DOM[1][1]]);
+  return out;
+}
+function splitLine(ctx, n, box, sx, sy, p, col, lw) {
+  if (n.f === 0) { const x = sx(n.thr), y0 = sy(box[2]), y1 = sy(box[3]); line(ctx, x, y0, x, lerp(y0, y1, p), col, lw); }
+  else { const y = sy(n.thr), x0 = sx(box[0]), x1 = sx(box[1]); line(ctx, x0, y, lerp(x0, x1, p), y, col, lw); }
+}
+// ---- tree diagrams ----
+function treeLayout(root, internal) {
+  const pos = new Map();
+  let leaves = 0, depth = 0;
+  (function walk(n, d) {
+    depth = Math.max(depth, d);
+    if (!internal(n)) { pos.set(n, { u: leaves++, d }); return; }
+    walk(n.left, d + 1); walk(n.right, d + 1);
+    pos.set(n, { u: (pos.get(n.left).u + pos.get(n.right).u) / 2, d });
+  })(root, 0);
+  return { pos, leaves, depth };
+}
+const condText = n => `${FEAT[n.f]} < ${(Math.round(n.thr * 1e4) / 1e4).toFixed(4)}`;
+function drawTree(ctx, R, root, L, o = {}) {
+  const slot = R.w / Math.max(1, L.leaves);
+  const bw = Math.max(40, Math.min(o.maxW || 138, slot - 8));
+  const bh = o.bh || 42;
+  const vgap = L.depth > 0 ? Math.min(o.maxGap || 96, (R.h - bh) / L.depth) : 0;
+  const top = R.y + Math.max(0, (R.h - bh - vgap * L.depth) / 2);
+  const P = n => { const p = L.pos.get(n); return { x: R.x + (p.u + 0.5) * slot, y: top + p.d * vgap }; };
+  const alpha = o.alpha || (() => 1);
+  const internal = o.internal || (n => n.split);
+  const nodesList = [];
+  (function walk(n) { nodesList.push(n); if (L.pos.has(n.left) && internal(n)) { walk(n.left); walk(n.right); } })(root);
+  // edges
+  for (const n of nodesList) {
+    if (!internal(n)) continue;
+    const a = P(n);
+    for (const [c, lab] of [[n.left, '是'], [n.right, '否']]) {
+      const al = Math.min(alpha(n), alpha(c));
+      if (al <= 0.01) continue;
+      const b = P(c);
+      const onPath = o.path && o.path.has(n) && o.path.has(c);
+      ctx.globalAlpha = al;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y + bh);
+      ctx.bezierCurveTo(a.x, a.y + bh + vgap * 0.35, b.x, b.y - vgap * 0.35, b.x, b.y);
+      ctx.strokeStyle = onPath ? C.ink : C.faint; ctx.lineWidth = onPath ? 2.4 : 1.2; ctx.stroke();
+      if (!o.noEdgeLabels) {
+        const t = 0.34, mx = lerp(a.x, b.x, t * 0.9), my = lerp(a.y + bh, b.y, t) + 4;
+        text(ctx, lab, mx + (c === n.left ? -8 : 8), my, fSans(10.5), onPath ? C.ink : C.muted, 'center');
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  // boxes
+  for (const n of nodesList) {
+    const al = alpha(n);
+    if (al <= 0.01) continue;
+    const p = P(n);
+    const x = p.x - bw / 2, y = p.y;
+    const lines = o.lines ? o.lines(n, bw) : [];
+    const leafNow = !internal(n);
+    const tone = o.tone ? o.tone(n) : null;
+    ctx.globalAlpha = al;
+    rr(ctx, x, y, bw, bh, 5);
+    ctx.fillStyle = tone ? A(tone, 0.13) : C.plate;
+    ctx.fill();
+    rr(ctx, x, y, bw, bh, 5);
+    const hi = o.hi === n || (o.path && o.path.has(n));
+    ctx.strokeStyle = hi ? C.ink : tone || (leafNow ? C.faint : C.rule);
+    ctx.lineWidth = hi ? 2 : 1;
+    ctx.setLineDash(leafNow && !tone ? [3, 3] : []);
+    ctx.stroke(); ctx.setLineDash([]);
+    const n2 = lines.length;
+    lines.forEach((ln, k) => {
+      const yy = y + bh / 2 + (k - (n2 - 1) / 2) * (o.lh || 15) + 4;
+      text(ctx, ln.t, p.x, yy, ln.f || fSans(12, 500), ln.c || C.ink, 'center');
+    });
+    ctx.globalAlpha = 1;
+    if (o.after) o.after(n, p, bw, bh);
+  }
+  return { P, bw, bh };
+}
+
+/* ---------- visibility, theme and font hooks ---------- */
+function watchFigure(fig, tl) {
+  if (!('IntersectionObserver' in window)) return;
+  new IntersectionObserver(es => {
+    for (const e of es) {
+      if (e.isIntersecting && e.intersectionRatio >= 0.4) tl.autoplay();
+      else if (!e.isIntersecting && tl.playing) tl.pause();
+    }
+  }, { threshold: [0, 0.4] }).observe(fig);
+}
+/* =====================================================================
+   XGBoost 预备课 · figures (part 1)
+   ===================================================================== */
+const SUBN = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'];
+const subNum = n => String(n).split('').map(d => SUBN[+d]).join('');
+const SUPS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '(': '⁽', ')': '⁾', '-': '⁻', t: 'ᵗ' };
+const supNum = v => String(v).split('').map(c => SUPS[c] || c).join('');
+const ascii = s => s.replace(new RegExp(MINUS, 'g'), '-');
+const T0 = buildTree(MX, G1, H1, DEMO);           // the first tree of the main page
+const LEAVES = [];
+(function walk(n) { if (n.leaf) LEAVES.push(n); else { walk(n.left); walk(n.right); } })(T0.root);
+const WS = LEAVES.map(n => n.w);                  // w₁, w₂, w₃ (left to right)
+const leafNo = n => LEAVES.indexOf(n) + 1;
+
+function markKeys(root, k) {
+  root.querySelectorAll('[data-k]').forEach(el => el.classList.toggle('on', k === 'all' || el.dataset.k === k));
+}
+function bindParts(container, tl) {
+  const go = el => { const i = tl.segs.findIndex(s => s.k === el.dataset.k); if (i >= 0) tl.jump(i); };
+  container.addEventListener('click', e => { const el = e.target.closest('.part'); if (el) go(el); });
+  container.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('part')) { e.preventDefault(); go(e.target); }
+  });
+}
+function markLines(pre, lines) {
+  pre.querySelectorAll('.ln').forEach((el, k) => el.classList.toggle('on', lines.includes(k)));
+}
+const codeLines = arr => arr.map(l => `<span class="ln">${l || ' '}</span>`).join('');
+function badge(ctx, x, y, s, fill, ink, r = 9) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = fill; ctx.fill();
+  text(ctx, s, x, y + 4, fMath(13, false), ink, 'center');
+}
+
+/* =====================================================================
+   图 0 · 把 Ω(f) 拆成七块
+   ===================================================================== */
+function figOmega() {
+  const fig = document.getElementById('fig-omega');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 460 ? 300 : 320));
+  const S = { gam: 0, lam: 1 };
+  const code = document.getElementById('omega-code');
+  const sq = WS.map(w => w * w), sumSq = sum(sq);
+  const omega = () => S.gam * WS.length + 0.5 * S.lam * sumSq;
+  const L = treeLayout(T0.root, n => !n.leaf);
+  function codeHtml() {
+    const tk = (k, s) => `<span class="tok" data-k="${k}">${s}</span>`;
+    return [
+      '<span class="c"># 正文里的第一棵树：3 片叶子</span>',
+      `${tk('T', 'T')} = 3`,
+      `w = [${WS.map(w => w.toFixed(3)).join(', ')}]        <span class="c"># w₁, w₂, w₃</span>`,
+      `${tk('gamma', 'gamma')}, ${tk('lam', 'lam')} = ${S.gam.toFixed(1)}, ${S.lam.toFixed(1)}`,
+      '',
+      `${tk('omega', 'omega')} = ${tk('gamma', 'gamma')} * ${tk('T', 'T')} + ${tk('lam', '0.5 * lam')} * ${tk('sum', 'sum(')}${tk('wj', 'wj')}${tk('sq', ' ** 2')} ${tk('sum', 'for wj in w)')}`,
+      `<span class="c"># omega = ${ascii(fmt(omega(), 3))}</span>`,
+    ].join('\n');
+  }
+  function build() {
+    return [
+      { k: 'omega', dur: 600, hold: 2600, title: 'Ω(f)：一棵树的罚分。', text: 'Ω 是希腊字母 omega（欧米伽），f 代表一棵树。Ω(f) 读作“Ω of f”，意思是“树 f 的复杂度罚分”，算出来是一个数。右边就是正文里的第一棵树。' },
+      { k: 'gamma', dur: 900, hold: 2600, title: 'γ：每片叶子的罚金。', text: `γ 读 gamma（伽马），是你自己设定的数，XGBoost 的参数就叫 gamma。每多一片叶子，罚分就加一个 γ。现在 γ = ${fmt(S.gam, 1)}。` },
+      { k: 'T', dur: 1200, hold: 2600, title: 'T：叶子数。', text: 'T 是这棵树有几片叶子。数一数，1、2、3，所以 T = 3。γ 和 T 挨着写表示相乘：γT = γ × T，叶子越多罚得越多。' },
+      { k: 'lam', dur: 700, hold: 2800, title: '½λ：分数罚得多狠。', text: `λ 读 lambda（兰姆达），也是你设定的数，XGBoost 的参数叫 lambda，默认 1。它管的是叶子分数：分数离 0 越远，罚得越多，λ 越大罚得越狠。前面的 ½ 只是为了以后求导时把 2 约掉（第 7 章），先不用管。` },
+      { k: 'sum', dur: 2100, hold: 2400, title: 'Σ：从 j = 1 加到 j = T。', text: 'Σ 是求和符号（第 2 章）。下面的 j = 1 表示从第 1 片叶子开始，上面的 T 表示一直加到第 T 片，也就是第 3 片。j 依次等于 1、2、3，每次算一项，最后加起来。' },
+      { k: 'wj', dur: 900, hold: 2600, title: 'wⱼ：第 j 片叶子的分数。', text: `右下角的 j 是叶子编号（第 1 章）。这棵树 w₁ = ${fmt(WS[0])}，w₂ = ${fmt(WS[1])}，w₃ = ${fmt(WS[2])}。` },
+      { k: 'sq', dur: 1200, hold: 2800, title: '²：平方。', text: `每个分数自己乘自己，负数也变成正数；分数翻倍，平方变成 4 倍。${WS.map(w => `(${fmt(w)})² = ${fmt(w * w)}`).join('，')}，加起来是 ${fmt(sumSq)}。` },
+      { k: 'all', dur: 900, hold: 3600, title: '全部代进去。', text: `Ω = γ × T + ½ × λ × (w₁² + w₂² + w₃²) = ${fmt(S.gam, 1)} × 3 + ½ × ${fmt(S.lam, 1)} × ${fmt(sumSq)} = <b>${fmt(omega())}</b>。拖动下面的 γ、λ，看 Ω 怎么变。` },
+    ];
+  }
+  function draw(i, p, s) {
+    markKeys(fig.querySelector('.formula'), s.k);
+    markKeys(code, s.k);
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const R = rect(8, 40, W - 16, H - 40 - 86);
+    const narrow = W < 460;
+    const out = drawTree(ctx, R, T0.root, L, {
+      internal: n => !n.leaf, maxW: narrow ? 104 : 118, bh: 38, lh: 14,
+      tone: n => (n.leaf ? signCol(n.w) : null),
+      lines: n => (n.leaf
+        ? [{ t: `w${subNum(leafNo(n))} = ${fmt(n.w)}`, c: signCol(n.w), f: fMono(narrow ? 11 : 12, 600) }]
+        : [{ t: condText(n), f: fSans(narrow ? 10.5 : 11.5, 500) }]),
+    });
+    const leafPos = LEAVES.map(n => out.P(n));
+    const bw = out.bw, bh = out.bh;
+    const k = s.k;
+    // overlays
+    if (k === 'omega') {
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      rr(ctx, R.x + 2, R.y - 26, R.w - 4, R.h + 30, 8); ctx.stroke(); ctx.setLineDash([]);
+      text(ctx, 'f：整棵树', R.x + 12, R.y - 10, fSans(12, 700), C.ink);
+    }
+    if (k === 'gamma') {
+      leafPos.forEach((q, j) => {
+        const a = ease(sub01(p, j * 0.25, j * 0.25 + 0.5));
+        if (a <= 0) return;
+        ctx.globalAlpha = a;
+        badge(ctx, q.x + bw / 2 - 2, q.y - 2, 'γ', C.ink, C.plate, 11);
+        ctx.globalAlpha = 1;
+      });
+      text(ctx, `每片叶子罚 γ = ${fmt(S.gam, 1)}`, W - 12, 22, fSans(12, 700), C.ink, 'right');
+    }
+    if (k === 'T' || k === 'all') {
+      const cnt = k === 'T' ? Math.floor(ease(p) * 3 + 0.999) : 3;
+      leafPos.forEach((q, j) => { if (j < cnt) badge(ctx, q.x - bw / 2 + 2, q.y - 2, String(j + 1), C.ink, C.plate, 10); });
+      text(ctx, `T = ${cnt}`, W - 12, 22, fMath(18, true), C.ink, 'right');
+    }
+    if (k === 'lam' || k === 'wj') {
+      leafPos.forEach(q => { ctx.strokeStyle = C.ink; ctx.lineWidth = 2.2; rr(ctx, q.x - bw / 2 - 3, q.y - 3, bw + 6, bh + 6, 7); ctx.stroke(); });
+      if (k === 'lam') text(ctx, 'λ 管的是这三个分数的大小', W - 12, 22, fSans(12, 700), C.ink, 'right');
+    }
+    if (k === 'sum') {
+      const pos = ease(p) * 2.999, j = Math.floor(pos);
+      const q0 = leafPos[j], q1 = leafPos[Math.min(2, j + 1)];
+      const f = clamp((pos - j - 0.55) / 0.45, 0, 1);
+      const x = lerp(q0.x, q1.x, ease(f));
+      const y = q0.y - 16;
+      ctx.fillStyle = C.ink;
+      ctx.beginPath(); ctx.moveTo(x, y + 6); ctx.lineTo(x - 7, y - 6); ctx.lineTo(x + 7, y - 6); ctx.closePath(); ctx.fill();
+      text(ctx, `j = ${Math.min(3, j + (f > 0.5 ? 2 : 1))}`, x, y - 12, fMath(15, true), C.ink, 'center');
+      leafPos.forEach((q, jj) => { if (jj <= j) { ctx.strokeStyle = A(C.ink, jj === j ? 1 : 0.35); ctx.lineWidth = 2; rr(ctx, q.x - bw / 2 - 3, q.y - 3, bw + 6, bh + 6, 7); ctx.stroke(); } });
+    }
+    const baseY = H - 50;
+    if (k === 'sq' || k === 'all') {
+      leafPos.forEach((q, j) => {
+        const a = k === 'sq' ? ease(sub01(p, j * 0.22, j * 0.22 + 0.5)) : 1;
+        if (a <= 0) return;
+        ctx.globalAlpha = a;
+        text(ctx, `(${fmt(WS[j])})² = ${fmt(WS[j] * WS[j])}`, q.x, q.y + bh + 18, fMono(narrow ? 10 : 11, 500), C.ink, 'center');
+        ctx.globalAlpha = 1;
+      });
+      const a = k === 'sq' ? ease(sub01(p, 0.7, 1)) : 1;
+      ctx.globalAlpha = a;
+      text(ctx, `${sq.map(v => fmt(v)).join(' + ')} = ${fmt(sumSq)}`, W / 2, baseY, fMono(narrow ? 11 : 12.5, 600), C.ink, 'center');
+      ctx.globalAlpha = 1;
+    }
+    if (k === 'all') {
+      text(ctx, `Ω = ${fmt(S.gam, 1)}×3 + ½×${fmt(S.lam, 1)}×${fmt(sumSq)} = ${fmt(omega())}`, W / 2, baseY + 26, fMono(narrow ? 12 : 14, 700), C.ink, 'center');
+    }
+  }
+  code.innerHTML = codeHtml();
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindParts(fig.querySelector('.formula'), tl);
+  const upd = () => { code.innerHTML = codeHtml(); tl.rebuild('keep'); };
+  bindRange('omega-gam', v => fmt(v, 1), v => { S.gam = v; upd(); });
+  bindRange('omega-lam', v => fmt(v, 1), v => { S.lam = v; upd(); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 1 · 下标选行，上标选列
+   ===================================================================== */
+function figIndex() {
+  const fig = document.getElementById('fig-index');
+  const R = 5;
+  const hist = trainModel(MX, MY, DEMO, R, 'logistic', 0);
+  const M = ALLIDX.map(i => [0].concat(hist.map(h => h.after[i])));
+  const table = document.getElementById('index-table');
+  const read = document.getElementById('index-read');
+  const S = { i: 0, t: 0, free: false };
+  table.innerHTML = '<thead><tr><th><i>i</i></th><th>密度</th><th>含糖率</th><th><i>y<sub>i</sub></i></th>' +
+    [...Array(R + 1).keys()].map(t => `<th data-t="${t}"><i>ŷ<sub>i</sub></i><sup>(${t})</sup></th>`).join('') + '</tr></thead><tbody>' +
+    ALLIDX.map(i => `<tr><td>${i + 1}</td><td data-c="x">${MX[i][0].toFixed(3)}</td><td data-c="x">${MX[i][1].toFixed(3)}</td><td data-c="y">${MY[i]}</td>` +
+      M[i].map((v, t) => `<td data-t="${t}">${fmt(v, 3)}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  const rows = [...table.querySelectorAll('tbody tr')];
+  const heads = [...table.querySelectorAll('thead th[data-t]')];
+  let last = '';
+  function show(i, t, what) {
+    const key = `${i}|${t}|${what}`;
+    if (key === last) return;
+    last = key;
+    rows.forEach((tr, r) => {
+      tr.classList.toggle('row-on', r === i);
+      tr.querySelectorAll('td').forEach(td => {
+        const c = td.dataset.c, tt = td.dataset.t;
+        td.classList.toggle('col-on', what === 't' && tt !== undefined && +tt === t);
+        td.classList.toggle('cell-on', r === i && ((what === 'x' && c === 'x') || (what === 'y' && c === 'y') || (what === 't' && tt !== undefined && +tt === t)));
+      });
+    });
+    heads.forEach(th => th.classList.toggle('col-on', what === 't' && +th.dataset.t === t));
+    const n = i + 1;
+    if (what === 'x') read.innerHTML = `<i>x</i><sub>${n}</sub> = (${MX[i][0].toFixed(3)}, ${MX[i][1].toFixed(3)})<span class="note">第 ${n} 个瓜的特征：密度、含糖率</span>`;
+    else if (what === 'y') read.innerHTML = `<i>y</i><sub>${n}</sub> = ${MY[i]}<span class="note">第 ${n} 个瓜的真实答案：${MY[i] ? '好瓜' : '坏瓜'}</span>`;
+    else read.innerHTML = `<i>ŷ</i><sub>${n}</sub><sup>(${t})</sup> = <span class="num">${fmt(M[i][t], 3)}</span><span class="note">第 ${n} 个瓜在第 ${t} 轮之后的预测</span>`;
+  }
+  function build() {
+    const segs = [
+      { k: 'x', dur: 500, hold: 2600, title: '下标是编号。', text: `x₁ 表示第 1 个瓜的特征：密度 ${MX[0][0].toFixed(3)}，含糖率 ${MX[0][1].toFixed(3)}。右下角的 1 就是代码里方括号中的编号：x[1]。` },
+      { k: 'y', dur: 500, hold: 2400, title: 'y 是真实答案。', text: 'y₁ = 1：第 1 个瓜是好瓜。坏瓜的 y 是 0。' },
+      { k: 't0', t: 0, dur: 500, hold: 2600, title: 'ŷ 是预测，上标 (0) 是第 0 轮。', text: 'ŷ₁⁽⁰⁾ = 0：还没有任何树的时候，所有瓜的预测都是 0（第 5 章会讲，这相当于“好瓜的概率是 0.5”）。' },
+    ];
+    for (let t = 1; t <= R; t++) segs.push({ k: 't' + t, t, dur: 600, hold: 1500, title: `ŷ₁${supNum('(' + t + ')')}：加完第 ${t} 棵树。`, text: `预测从 ${fmt(M[0][t - 1], 3)} 变成 ${fmt(M[0][t], 3)}。上标往右走一格，就是再多一棵树。` });
+    segs.push({ k: 'pow', t: 2, dur: 500, hold: 3200, title: '括号里的 t 不是乘方。', text: `ŷ₁⁽²⁾ = ${fmt(M[0][2], 3)} 是第 2 轮之后的预测。如果写成 ŷ₁²，就是 ŷ₁ × ŷ₁，意思完全不同。看右上角有没有括号就能分清。` });
+    segs.push({ k: 'free', dur: 500, hold: 3000, title: '换一个瓜看看。', text: '拖动下面的 i 和 t。试试第 7 个瓜：它是好瓜，却和坏瓜长得很像，前几棵树反而把它往负数推。' });
+    return segs;
+  }
+  function draw(i, p, s) {
+    if (s.k === 'free' || S.free) { show(S.i, S.t, 't'); return; }
+    if (s.k === 'x') show(0, 0, 'x');
+    else if (s.k === 'y') show(0, 0, 'y');
+    else show(0, s.t, 't');
+  }
+  const tl = new Timeline(fig, build, draw);
+  tl.onControl = () => { S.free = false; last = ''; };
+  const iIn = bindRange('index-i', v => String(v), v => { S.i = v - 1; S.free = true; tl.jump(tl.segs.length - 1); });
+  const tIn = bindRange('index-t', v => String(v), v => { S.t = v; S.free = true; tl.jump(tl.segs.length - 1); });
+  S.i = +iIn.value - 1; S.t = +tIn.value;
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 2 · Σ 就是一个 for 循环
+   ===================================================================== */
+function figSum() {
+  const fig = document.getElementById('fig-sum');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? 250 : 230));
+  const code = document.getElementById('sum-code'), watch = document.getElementById('sum-watch'), fbox = document.getElementById('sum-f');
+  const S = { mode: 'leaves' };
+  const sq = WS.map(w => w * w);
+  const I1 = LEAVES[0].idx.slice().sort((a, b) => a - b);          // melons in leaf 1
+  const inI = i => I1.includes(i);
+  const CODE = {
+    leaves: [
+      `w = {1: ${WS[0].toFixed(3)}, 2: ${WS[1].toFixed(3)}, 3: ${WS[2].toFixed(3)}}   <span class="c"># 3 片叶子的分数</span>`,
+      'total = 0',
+      'for j in range(1, 4):             <span class="c"># j = 1, 2, 3</span>',
+      '    total += w[j] ** 2            <span class="c"># 加上第 j 项 wⱼ²</span>',
+      `print(total)                      <span class="c"># ${ascii(fmt(sum(sq)))}</span>`,
+    ],
+    samples: [
+      '<span class="c"># g[i]：第 i 个瓜的一阶导（好瓜 -0.5，坏瓜 +0.5）</span>',
+      'G = 0',
+      'for i in range(1, 18):            <span class="c"># 17 个瓜挨个看</span>',
+      '    if i in I[1]:                 <span class="c"># i ∈ I₁：落在第 1 片叶子</span>',
+      '        G += g[i]',
+      `print(G)                          <span class="c"># ${ascii(fmt(sum(I1.map(i => G1[i])), 1))}</span>`,
+    ],
+  };
+  const setCode = () => { code.innerHTML = codeLines(CODE[S.mode]); };
+  function formula(activeJ, doneUpTo) {
+    if (S.mode === 'leaves') {
+      const terms = WS.map((w, j) => `<span class="part${j === activeJ ? ' on' : ''}" style="cursor:default">(${fmt(w)})<sup>2</sup></span>`).join(' + ');
+      return `<span class="op"><span class="t">3</span><span class="s">Σ</span><span class="b">j=1</span></span> <i>w<sub>j</sub></i><sup>2</sup> = ${terms}${doneUpTo >= 3 ? ` = ${fmt(sum(sq))}` : ''}`;
+    }
+    const terms = I1.map(i => `<span class="part${i === activeJ ? ' on' : ''}" style="cursor:default"><i>g</i><sub>${i + 1}</sub></span>`).join(' + ');
+    return `<i>G</i><sub>1</sub> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i∈I<sub>1</sub></span></span> <i>g<sub>i</sub></i> = ${terms}${doneUpTo >= 17 ? ` = ${fmt(sum(I1.map(i => G1[i])), 1)}` : ''}`;
+  }
+  function build() {
+    if (S.mode === 'leaves') {
+      const segs = [{ k: 'init', dur: 500, hold: 2200, title: '先把 total 设成 0。', text: 'Σ 从 j = 1 加到 T = 3：循环变量 j 依次取 1、2、3。' }];
+      let acc = 0;
+      WS.forEach((w, j) => { acc += w * w; segs.push({ k: 'step', j, dur: 1100, hold: 1500, title: `j = ${j + 1}：`, text: `取出 w${subNum(j + 1)} = ${fmt(w)}，平方得 ${fmt(w * w)}，total 变成 ${fmt(acc)}。` }); });
+      segs.push({ k: 'done', dur: 600, hold: 3000, title: '循环结束。', text: `j 从 1 到 3 的 wⱼ² 加起来是 ${fmt(acc)}。符号 Σ 做的就是这件事，只是写得更短。` });
+      return segs;
+    }
+    const segs = [{ k: 'init', dur: 500, hold: 2600, title: 'G 先设成 0。', text: `I₁ 是落进第 1 片叶子（含糖率 < 0.2045）的瓜：${I1.map(i => '#' + (i + 1)).join('、')}。循环会把 17 个瓜挨个看一遍，只加属于 I₁ 的。` }];
+    let acc = 0;
+    for (let i = 0; i < NM; i++) {
+      if (inI(i)) { acc += G1[i]; segs.push({ k: 'step', i, dur: 380, hold: 520, title: `i = ${i + 1}：`, text: `在 I₁ 里，加上 g${subNum(i + 1)} = ${fmtS(G1[i], 1)}，G = ${fmt(acc, 1)}。` }); }
+      else segs.push({ k: 'step', i, dur: 260, hold: 280, title: `i = ${i + 1}：`, text: '不在 I₁ 里，跳过。' });
+    }
+    segs.push({ k: 'done', dur: 600, hold: 3200, title: '循环结束。', text: `G₁ = ${fmt(acc, 1)}：8 个瓜里 7 个坏瓜（g = +0.5）、1 个好瓜（g = −0.5）。正文第 4 章的“左叶 G = 3.0”就是这么来的。` });
+    return segs;
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const leaves = S.mode === 'leaves';
+    // which items are done, which is active
+    let active = -1, done = 0;
+    if (s.k === 'step') { active = leaves ? s.j : s.i; done = (leaves ? s.j : s.i) + (p > 0.6 ? 1 : 0); }
+    else if (s.k === 'done') done = leaves ? 3 : NM;
+    fbox.innerHTML = formula(active, s.k === 'done' ? (leaves ? 3 : 17) : 0);
+    // code + watch
+    if (leaves) markLines(code, s.k === 'init' ? [0, 1] : s.k === 'step' ? [2, 3] : [4]);
+    else markLines(code, s.k === 'init' ? [1] : s.k === 'step' ? (inI(s.i) ? [2, 3, 4] : [2, 3]) : [5]);
+    const items = leaves ? WS : ALLIDX;
+    const n = items.length;
+    const accTo = k => (leaves ? sum(sq.slice(0, k)) : sum(ALLIDX.slice(0, k).filter(inI).map(q => G1[q])));
+    const total = accTo(done);
+    if (leaves) {
+      const rowsW = [['j', active >= 0 ? String(active + 1) : '—'], ['wⱼ', active >= 0 ? fmt(WS[active]) : '—'], ['wⱼ²', active >= 0 ? fmt(sq[active]) : '—'], ['total', fmt(total)]];
+      watch.innerHTML = rowsW.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+    } else {
+      const rowsW = [['i', active >= 0 ? String(active + 1) : '—'], ['i ∈ I₁ ?', active >= 0 ? (inI(active) ? '是' : '否') : '—'], ['gᵢ', active >= 0 ? fmtS(G1[active], 1) : '—'], ['G', fmt(total, 1)]];
+      watch.innerHTML = rowsW.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+    }
+    // boxes
+    const padX = 16;
+    const cw = (W - padX * 2) / n;
+    const boxW = leaves ? Math.min(150, cw - 24) : Math.min(30, cw - 3);
+    const boxH = leaves ? 52 : 30;
+    const topY = 44;
+    const cx = k => padX + (k + 0.5) * cw;
+    // pointer
+    if (active >= 0) {
+      const prev = s.k === 'step' && active > 0 ? cx(active - 1) : cx(active);
+      const x = lerp(prev, cx(active), ease(Math.min(1, p * 2)));
+      ctx.fillStyle = C.ink;
+      ctx.beginPath(); ctx.moveTo(x, topY - 4); ctx.lineTo(x - 6, topY - 14); ctx.lineTo(x + 6, topY - 14); ctx.closePath(); ctx.fill();
+      text(ctx, `${leaves ? 'j' : 'i'} = ${active + 1}`, x, topY - 20, fMath(14, true), C.ink, 'center');
+    }
+    if (!leaves) {
+      // bracket over the members of I₁
+      text(ctx, 'I₁ 的成员带下划线', W - padX, 14, fSans(11), C.muted, 'right');
+    }
+    items.forEach((it, k) => {
+      const x = cx(k), y = topY;
+      const visited = k < done;
+      const isActive = k === active;
+      if (leaves) {
+        rr(ctx, x - boxW / 2, y, boxW, boxH, 6);
+        ctx.fillStyle = A(signCol(it), isActive ? 0.2 : 0.1); ctx.fill();
+        ctx.strokeStyle = isActive ? C.ink : signCol(it); ctx.lineWidth = isActive ? 2 : 1; ctx.stroke();
+        text(ctx, `w${subNum(k + 1)} = ${fmt(it)}`, x, y + 31, fMono(W < 560 ? 11.5 : 13, 600), signCol(it), 'center');
+        if (visited || (isActive && p > 0.4)) {
+          const a = isActive ? ease(sub01(p, 0.4, 0.8)) : 1;
+          ctx.globalAlpha = a;
+          text(ctx, `w${subNum(k + 1)}² = ${fmt(sq[k])}`, x, y + boxH + 22, fMono(W < 560 ? 11 : 12.5, 500), C.ink, 'center');
+          ctx.globalAlpha = 1;
+        }
+      } else {
+        const member = inI(k);
+        const skipped = visited && !member;
+        ctx.globalAlpha = skipped ? 0.3 : 1;
+        melon(ctx, x, y + 12, MY[k] === 1, Math.min(8, boxW / 2.6));
+        if (cw >= 17) text(ctx, String(k + 1), x, y + 36, fMono(9.5), C.muted, 'center');
+        if (member) line(ctx, x - boxW / 2 + 2, y + 42, x + boxW / 2 - 2, y + 42, C.ink, 2);
+        if (visited && member) text(ctx, (G1[k] > 0 ? '+' : MINUS) + (cw < 26 ? '½' : '0.5'), x, y + 58, fMono(cw < 22 ? 9.5 : 10.5, 600), C.g, 'center');
+        ctx.globalAlpha = 1;
+      }
+    });
+    // accumulator
+    const barY = H - 34;
+    const lo = leaves ? 0 : -1, hi = leaves ? Math.max(3.4, sum(sq) * 1.1) : 4;
+    const sx = scale(lo, hi, padX + 60, W - padX - 70);
+    line(ctx, sx(lo), barY + 0.5, sx(hi), barY + 0.5, C.rule);
+    for (const t of ticks(lo, hi, leaves ? 4 : 5)) { line(ctx, sx(t), barY, sx(t), barY + 4, C.faint); text(ctx, fmt(t, t % 1 ? 1 : 0), sx(t), barY + 16, fMono(9.5), C.muted, 'center'); }
+    text(ctx, leaves ? 'total' : 'G', padX, barY + 4, fMono(12, 600), C.ink);
+    let accV = 0;
+    for (let k = 0; k < n; k++) {
+      const add = leaves ? sq[k] : inI(k) ? G1[k] : 0;
+      const isAct = k === active;
+      if (k >= done && !(isAct && p > 0.6)) break;
+      if (!add) continue;
+      const u = isAct && k >= done - 1 && s.k === 'step' ? ease(sub01(p, 0.6, 1)) : 1;
+      const x0 = sx(accV), x1 = sx(accV + add * u);
+      ctx.fillStyle = leaves ? A(signCol(WS[k]), 0.5) : A(C.g, 0.55);
+      ctx.fillRect(Math.min(x0, x1), barY - 14, Math.abs(x1 - x0), 12);
+      ctx.strokeStyle = C.plate; ctx.lineWidth = 1; ctx.strokeRect(Math.min(x0, x1), barY - 14, Math.abs(x1 - x0), 12);
+      accV += add * u;
+    }
+    line(ctx, sx(accV), barY - 20, sx(accV), barY + 2, C.ink, 2);
+    text(ctx, fmt(accV, leaves ? 3 : 1), W - padX, barY + 4, fMono(12.5, 700), C.ink, 'right');
+  }
+  setCode();
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindSeg('sum-mode', v => { S.mode = v; setCode(); tl.rebuild('start'); tl.play(); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 3 · 三个瓜走过同一棵树
+   ===================================================================== */
+function figWalk() {
+  const fig = document.getElementById('fig-walk');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 460 ? 300 : 320));
+  const code = document.getElementById('walk-code');
+  const L = treeLayout(T0.root, n => !n.leaf);
+  const root = T0.root, n2 = root.right;
+  code.innerHTML = codeLines([
+    'def q(x):                          <span class="c"># 返回叶子编号</span>',
+    `    if x.sugar < ${root.thr.toFixed(4)}:          <span class="c"># 含糖率</span>`,
+    '        return 1',
+    `    if x.density < ${n2.thr.toFixed(4)}:        <span class="c"># 密度</span>`,
+    '        return 2',
+    '    return 3',
+    '',
+    `w = {1: ${WS[0].toFixed(3)}, 2: ${WS[1].toFixed(3)}, 3: ${WS[2].toFixed(3)}}`,
+    '',
+    'def f(x):',
+    '    return w[q(x)]                 <span class="c"># 先找叶子，再取分数</span>',
+  ]);
+  const MEL = [6, 14, 0]; // #7, #15, #1
+  const lineOf = (n, yes) => (n === root ? (yes ? [1, 2] : [1]) : (yes ? [3, 4] : [3, 5]));
+  function build() {
+    const segs = [{ k: 'intro', dur: 500, hold: 2400, title: '一棵树就是一个函数。', text: `这棵树有 3 片叶子，分数 w = (${WS.map(w => fmt(w)).join(', ')})。给它一个瓜，它先回答“是 / 否”问题找到叶子，再把叶子上的分数交出来。` }];
+    for (const id of MEL) {
+      const x = MX[id], path = T0.pathOf(x);
+      segs.push({ k: 'enter', id, dur: 700, hold: 1500, title: `#${id + 1} 号瓜进场：`, text: `密度 ${x[0].toFixed(3)}，含糖率 ${x[1].toFixed(3)}，${MY[id] ? '其实是好瓜' : '其实是坏瓜'}。从树根开始。` });
+      for (let k = 0; k < path.length - 1; k++) {
+        const n = path[k], yes = x[n.f] < n.thr;
+        segs.push({ k: 'ask', id, n, next: path[k + 1], yes, dur: 1200, hold: 1300, title: `问：${FEAT[n.f]} < ${n.thr.toFixed(4)}？`, text: `它的${FEAT[n.f]}是 ${x[n.f].toFixed(3)}，${yes ? '小于' : '不小于'} ${n.thr.toFixed(4)}，回答“${yes ? '是' : '否'}”，往${yes ? '左' : '右'}走。` });
+      }
+      const leaf = path[path.length - 1], j = leafNo(leaf);
+      segs.push({ k: 'leaf', id, leaf, dur: 700, hold: 2200, title: `落在第 ${j} 片叶子：`, text: `q(x) = ${j}，f(x) = w${subNum(j)} = ${fmt(leaf.w)}。分数${leaf.w >= 0 ? '为正，往好瓜推' : '为负，往坏瓜推'}。` });
+    }
+    segs[segs.length - 1].hold = 3000;
+    return segs;
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const R = rect(8, 58, W - 16, H - 58 - 14);
+    const narrow = W < 460;
+    const hiNode = s.k === 'ask' ? s.n : s.k === 'leaf' ? s.leaf : null;
+    const out = drawTree(ctx, R, T0.root, L, {
+      internal: n => !n.leaf, maxW: narrow ? 104 : 124, bh: 40, lh: 14, hi: hiNode,
+      tone: n => (n.leaf ? signCol(n.w) : null),
+      lines: n => (n.leaf
+        ? [{ t: `叶子 ${leafNo(n)}`, c: C.muted, f: fSans(10.5) }, { t: `w${subNum(leafNo(n))} = ${fmt(n.w)}`, c: signCol(n.w), f: fMono(narrow ? 11 : 12, 600) }]
+        : [{ t: condText(n), f: fSans(narrow ? 10.5 : 11.5, 500) }, { t: '？', c: C.muted, f: fSans(10.5) }]),
+    });
+    // code highlight
+    if (s.k === 'ask') markLines(code, lineOf(s.n, s.yes));
+    else if (s.k === 'leaf') markLines(code, [9, 10, 7]);
+    else markLines(code, []);
+    if (s.k === 'intro') return;
+    const id = s.id, x = MX[id];
+    text(ctx, `#${id + 1} 号瓜：密度 ${x[0].toFixed(3)}，含糖率 ${x[1].toFixed(3)}`, 12, 22, fSans(12.5, 700), C.ink);
+    // token position
+    let px, py;
+    const top = n => { const q = out.P(n); return { x: q.x, y: q.y }; };
+    if (s.k === 'enter') { const q = top(T0.root); px = q.x; py = lerp(q.y - 40, q.y - 14, ease(p)); }
+    else if (s.k === 'ask') {
+      const a = top(s.n), b = top(s.next);
+      const u = ease(sub01(p, 0.35, 1));
+      px = lerp(a.x, b.x, u); py = lerp(a.y - 14, b.y - 14, u);
+      if (p < 0.9) {
+        const q = `${x[s.n.f].toFixed(3)} ${s.yes ? '<' : '≥'} ${s.n.thr.toFixed(4)} → ${s.yes ? '是' : '否'}`;
+        ctx.font = fMono(11, 600);
+        const tw = ctx.measureText(q).width;
+        const bxx = a.x + out.bw / 2 + tw + 16 > W ? a.x - out.bw / 2 - tw - 16 : a.x + out.bw / 2 + 8;
+        ctx.fillStyle = C.ink; rr(ctx, bxx, a.y + 6, tw + 12, 22, 4); ctx.fill();
+        text(ctx, q, bxx + 6, a.y + 21, fMono(11, 600), C.plate);
+      }
+    } else { const q = top(s.leaf); px = q.x; py = q.y - 14; }
+    melon(ctx, px, py, MY[id] === 1, 9);
+    text(ctx, String(id + 1), px, py + 3.5, fMono(9, 600), C.plate, 'center');
+    if (s.k === 'leaf') {
+      const a = ease(p);
+      ctx.globalAlpha = a;
+      text(ctx, `q(x) = ${leafNo(s.leaf)}    f(x) = ${fmt(s.leaf.w)}`, W - 12, 22, fMono(12.5, 700), signCol(s.leaf.w), 'right');
+      ctx.globalAlpha = 1;
+    }
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+/* =====================================================================
+   XGBoost 预备课 · figures (part 2)
+   ===================================================================== */
+const lossY1 = m => (m < -30 ? -m : Math.log1p(Math.exp(-m)));  // −ln σ(m): loss of a good melon
+const dLoss = m => sigmoid(m) - 1;
+const d2Loss = m => { const q = sigmoid(m); return q * (1 - q); };
+const readoutHtml = rows => rows.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+
+/* =====================================================================
+   图 4 · 两种量误差的方法
+   ===================================================================== */
+function figLoss() {
+  const fig = document.getElementById('fig-loss');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 700 ? 560 : 340));
+  const S = { yhat: 3, p: 0.8, y: 1 };
+  const Y = 5;
+  const logL = (y, p) => (y === 1 ? -Math.log(p) : -Math.log(1 - p));
+  function build() {
+    const e = Math.abs(Y - S.yhat);
+    const whole = Math.abs(e - Math.round(e)) < 1e-9 && e > 0;
+    const pp = fmt(S.p, 2);
+    return [
+      { k: 'sq1', dur: 700, hold: 2400, title: '平方损失：先看差多少。', text: `真实值 y = 5，预测 ŷ = ${fmt(S.yhat, 1)}，差 ${fmt(e, 1)}（红线）。` },
+      { k: 'sq2', dur: 1300, hold: 2800, title: '“平方”就是以差为边长的正方形。', text: `边长 ${fmt(e, 1)}，面积 ${fmt(e * e, 2)}${whole ? `，也就是 ${Math.round(e)} × ${Math.round(e)} = ${Math.round(e * e)} 个小格` : ''}。这个面积就是 (y − ŷ)²。` },
+      { k: 'sq3', dur: 900, hold: 2800, title: '离得越远，罚得越狠。', text: `差变成 2 倍（${fmt(2 * e, 1)}），面积就变成 4 倍（${fmt(4 * e * e, 1)}）。虚线框是差 2 倍时的正方形。` },
+      { k: 'sq4', dur: 700, hold: 2800, title: '最后乘 ½。', text: `l = ½(y − ŷ)² = ½ × ${fmt(e * e, 2)} = ${fmt(0.5 * e * e, 2)}。½ 只改数值大小，不改“哪个预测更好”。拖动“回归预测 ŷ”试试。` },
+      { k: 'log1', dur: 900, hold: 2800, title: '对数损失：看概率说得准不准。', text: S.y === 1 ? `这是个好瓜（y = 1），模型说它是好瓜的概率 p = ${pp}，损失 = −ln ${pp} = ${fmt(logL(1, S.p), 3)}。` : `这是个坏瓜（y = 0），模型说它是好瓜的概率 p = ${pp}，损失 = −ln(1 − ${pp}) = ${fmt(logL(0, S.p), 3)}。` },
+      { k: 'log2', dur: 1300, hold: 3000, title: '越有把握地说错，罚得越重。', text: S.y === 1 ? '好瓜被说成 p = 0.5 罚 0.693，p = 0.1 罚 2.303，p = 0.01 罚 4.605。说对了也有一点罚分，p 越接近 1，罚分越接近 0。' : '坏瓜被说成 p = 0.5 罚 0.693，p = 0.9 罚 2.303，p = 0.99 罚 4.605。p 越接近 0，罚分越接近 0。' },
+      { k: 'log3', dur: 900, hold: 3200, title: '好瓜和坏瓜正好相反。', text: '实线是当前选中的情况，虚线是另一种。好瓜的损失是 −ln p，坏瓜的是 −ln(1 − p)，两条曲线左右对称。' },
+    ];
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h, wide = W >= 700;
+    const LA = wide ? rect(22, 30, W / 2 - 44, H - 30 - 30) : rect(22, 30, W - 44, 230);
+    const RB = wide ? rect(W / 2 + 44, 30, W / 2 - 62, H - 30 - 46) : rect(56, LA.b + 70, W - 74, H - LA.b - 70 - 46);
+    const sqMode = i <= 3;
+    // ---- left: squared loss
+    ctx.globalAlpha = sqMode ? 1 : 0.35;
+    text(ctx, '平方损失（回归）', LA.x, LA.y - 12, fSans(12.5, 700), C.ink);
+    const lineY = LA.b - 42;
+    const sx = scale(0, 10, LA.x + 6, LA.r - 6), u = sx(1) - sx(0);
+    line(ctx, sx(0), lineY + 0.5, sx(10), lineY + 0.5, C.rule, 1.5);
+    for (let t = 0; t <= 10; t++) { line(ctx, sx(t), lineY - 3, sx(t), lineY + 3, C.faint); text(ctx, String(t), sx(t), lineY + 16, fMono(10), C.muted, 'center'); }
+    const e = Math.abs(Y - S.yhat), a = Math.min(Y, S.yhat);
+    const grow = i === 1 ? ease(p) : i > 1 ? 1 : 0;
+    const maxSide = lineY - LA.y - 22;
+    const side = Math.min(e * u, maxSide);
+    if (grow > 0 && e > 0) {
+      const sz = side * grow;
+      const x0 = sx(a), y0 = lineY - sz;
+      ctx.fillStyle = A(C.g, 0.12); ctx.fillRect(x0, y0, side * grow, sz);
+      ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, side * grow, sz); ctx.clip();
+      const cell = side / e;
+      for (let k = 1; k < Math.ceil(e) + 1; k++) { line(ctx, x0 + k * cell, y0, x0 + k * cell, lineY, A(C.g, 0.35)); line(ctx, x0, lineY - k * cell, x0 + side, lineY - k * cell, A(C.g, 0.35)); }
+      ctx.restore();
+      ctx.strokeStyle = C.g; ctx.lineWidth = 1.8; ctx.strokeRect(x0, y0, side * grow, sz);
+      if (grow > 0.95) text(ctx, `面积 ${fmt(e * e, 2)}`, x0 + side / 2, y0 - 8, fMono(11.5, 600), C.g, 'center');
+    }
+    if (i === 2 && e > 0) {
+      const big = Math.min(2 * e * u, maxSide + 18);
+      ctx.globalAlpha = (sqMode ? 1 : 0.35) * ease(p);
+      ctx.strokeStyle = C.g; ctx.lineWidth = 1.3; ctx.setLineDash([5, 4]);
+      const bx = S.yhat < Y ? sx(Y) - big : sx(Y);
+      ctx.strokeRect(bx, lineY - big, big, big); ctx.setLineDash([]);
+      text(ctx, `差 ${fmt(2 * e, 1)}：面积 ${fmt(4 * e * e, 1)}`, bx + big / 2, lineY - big + 16, fMono(11, 500), C.g, 'center');
+      ctx.globalAlpha = sqMode ? 1 : 0.35;
+    }
+    line(ctx, sx(Y), lineY + 0.5, sx(S.yhat), lineY + 0.5, C.g, 4);
+    ctx.beginPath(); ctx.arc(sx(Y), lineY, 5, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+    text(ctx, '真实 y = 5', sx(Y), lineY + 31, fSans(11.5, 700), C.ink, 'center');
+    ctx.fillStyle = C.plate; ctx.strokeStyle = C.ink; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx(S.yhat), lineY, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    text(ctx, `预测 ŷ = ${fmt(S.yhat, 1)}`, sx(S.yhat), lineY + 46, fSans(11.5, 700), C.ink2, 'center');
+    if (i === 3) {
+      ctx.globalAlpha = ease(p);
+      text(ctx, `l = ½ × ${fmt(e * e, 2)} = ${fmt(0.5 * e * e, 2)}`, LA.r, LA.y + 6, fMono(13, 700), C.ink, 'right');
+    }
+    ctx.globalAlpha = 1;
+    // ---- right: log loss
+    ctx.globalAlpha = sqMode ? 0.35 : 1;
+    text(ctx, `对数损失（分类，${S.y === 1 ? '好瓜 y = 1' : '坏瓜 y = 0'}）`, RB.x - 34, RB.y - 12, fSans(12.5, 700), C.ink);
+    const px = scale(0, 1, RB.x, RB.r), py = scale(0, 5, RB.b, RB.y);
+    axes(ctx, RB, px, py, { xt: [0, 0.25, 0.5, 0.75, 1], yt: [0, 1, 2, 3, 4, 5], xf: v => String(v), xl: '模型说“是好瓜”的概率 p →', yl: '' });
+    const curve = y => { plotFn(ctx, q => logL(y, clamp(q, 0.004, 0.996)), y === 1 ? 0.0068 : 0, y === 1 ? 1 : 0.9932, px, py, 180); };
+    ctx.save(); ctx.beginPath(); ctx.rect(RB.x, RB.y, RB.w, RB.h); ctx.clip();
+    if (i === 6) { curve(1 - S.y); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.6; ctx.setLineDash([6, 4]); ctx.globalAlpha = ease(p); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = sqMode ? 0.35 : 1; }
+    curve(S.y); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.2; ctx.stroke();
+    ctx.restore();
+    if (i === 5) {
+      const refs = S.y === 1 ? [0.5, 0.1, 0.01] : [0.5, 0.9, 0.99];
+      refs.forEach((q, k) => {
+        const a2 = ease(sub01(p, k * 0.25, k * 0.25 + 0.5));
+        if (a2 <= 0) return;
+        ctx.globalAlpha = a2;
+        const L = logL(S.y, q);
+        ctx.beginPath(); ctx.arc(px(q), py(L), 4, 0, Math.PI * 2); ctx.fillStyle = C.g; ctx.fill();
+        text(ctx, `p=${q} → ${fmt(L, 3)}`, px(q) + (S.y === 1 ? 8 : -8), py(L) + 4, fMono(10.5, 600), C.g, S.y === 1 ? 'left' : 'right');
+      });
+      ctx.globalAlpha = 1;
+    }
+    const Lc = logL(S.y, S.p);
+    line(ctx, px(S.p), RB.b, px(S.p), py(Lc), A(C.ink, 0.35), 1, [3, 3]);
+    ctx.beginPath(); ctx.arc(px(S.p), py(Lc), 5.5, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+    text(ctx, `p = ${fmt(S.p, 2)}，损失 ${fmt(Lc, 3)}`, clamp(px(S.p) + 10, RB.x + 4, RB.r - 150), Math.max(RB.y + 14, py(Lc) - 10), fMono(11.5, 700), C.ink);
+    ctx.globalAlpha = 1;
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('loss-yhat', v => fmt(v, 1), v => { S.yhat = v; tl.rebuild('keep'); });
+  bindRange('loss-p', v => fmt(v, 2), v => { S.p = v; tl.rebuild('keep'); });
+  bindSeg('loss-y', v => { S.y = +v; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 5 · sigmoid
+   ===================================================================== */
+function figSig() {
+  const fig = document.getElementById('fig-sig');
+  const st = new Stage(fig.querySelector('canvas'), w => Math.round(clamp(w * 0.46, 300, 380)));
+  const S = { z: Math.log(4) };
+  const read = document.getElementById('sig-read');
+  const hist = trainModel(MX, MY, DEMO, 5, 'logistic', 0);
+  const walk = [0].concat(hist.map(h => h.after[0]));    // melon #1 after each tree
+  function build() {
+    const pz = sigmoid(S.z), odds = pz / (1 - pz);
+    const steps = walk.slice(1).map((v, k) => v - walk[k]);
+    return [
+      { k: 'p', dur: 700, hold: 2600, title: 'p 只能在 0 和 1 之间。', text: '纵轴是概率 p。上下两条粗线是边界：p 不能小于 0，也不能大于 1。' },
+      { k: 'odds', dur: 900, hold: 2800, title: '赔率 = p ÷ (1 − p)。', text: `当前 p = ${fmt(pz, 3)}，赔率 = ${fmt(pz, 3)} ÷ ${fmt(1 - pz, 3)} = ${fmt(odds, 2)}：“是好瓜”的可能性是“是坏瓜”的 ${fmt(odds, 2)} 倍。` },
+      { k: 'z', dur: 900, hold: 2800, title: 'log-odds z = ln(赔率)。', text: `z = ln ${fmt(odds, 2)} = ${fmt(S.z, 3)}。横轴就是 z，它可以是任何实数：p = 0.5 对应 z = 0，p 越接近 1，z 越大；p 越接近 0，z 越小。` },
+      { k: 'curve', dur: 1600, hold: 2800, title: 'sigmoid 把 z 换回 p。', text: '对横轴上每个 z 算出 σ(z)，连起来是一条 S 形曲线。两头无限接近 0 和 1，但永远碰不到。拖动下面的 z 试试。' },
+      { k: 'add', dur: 3200, hold: 3200, title: '树的分数都加在 z 上。', text: `1 号瓜：z 从 0 出发，第 1 棵树加 ${fmtS(steps[0], 3)}，第 2 棵加 ${fmtS(steps[1], 3)}……5 棵树后 z = ${fmt(walk[5], 3)}，p = ${fmt(sigmoid(walk[5]), 3)}。在 z 上怎么加，p 都不会越界。` },
+    ];
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const R = rect(46, 18, W - 62, H - 18 - 44);
+    const sx = scale(-6, 6, R.x, R.r), sy = scale(-0.04, 1.04, R.b, R.y);
+    axes(ctx, R, sx, sy, { xt: [-6, -4, -2, 0, 2, 4, 6], yt: [0, 0.25, 0.5, 0.75, 1], xf: v => fmt(v, 0), yf: v => String(v), xl: 'log-odds z →', yl: '概率 p' });
+    const pz = sigmoid(S.z);
+    if (i === 0) {
+      const a = ease(p);
+      ctx.globalAlpha = a;
+      line(ctx, R.x, sy(1), R.r, sy(1), C.ink, 2.5); line(ctx, R.x, sy(0), R.r, sy(0), C.ink, 2.5);
+      text(ctx, 'p = 1（上限）', R.r - 6, sy(1) + 16, fSans(11.5, 700), C.ink, 'right');
+      text(ctx, 'p = 0（下限）', R.r - 6, sy(0) - 8, fSans(11.5, 700), C.ink, 'right');
+      ctx.globalAlpha = 1;
+    }
+    if (i === 2) {
+      const a = ease(p);
+      ctx.globalAlpha = a;
+      arrow(ctx, sx(0), R.b - 10, R.r - 4, R.b - 10, C.ink, 2.4, 9);
+      arrow(ctx, sx(0), R.b - 10, R.x + 4, R.b - 10, C.ink, 2.4, 9);
+      text(ctx, 'z 可以一直往右', R.r - 8, R.b - 18, fSans(11), C.ink, 'right');
+      text(ctx, '也可以一直往左', R.x + 8, R.b - 18, fSans(11), C.ink, 'left');
+      ctx.globalAlpha = 1;
+    }
+    if (i >= 3) {
+      ctx.save(); ctx.beginPath(); ctx.rect(R.x, R.y, R.w * (i === 3 ? ease(p) : 1), R.h); ctx.clip();
+      plotFn(ctx, sigmoid, -6, 6, sx, sy, 200); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.4; ctx.stroke();
+      ctx.restore();
+    }
+    if (i === 4) {
+      const prog = ease(p) * 5;
+      for (let k = 1; k <= 5; k++) {
+        const u = clamp(prog - (k - 1), 0, 1);
+        if (u <= 0) break;
+        const z0 = walk[k - 1], z1 = lerp(walk[k - 1], walk[k], u);
+        arrow(ctx, sx(z0), R.b - 12 - k * 7, sx(z1), R.b - 12 - k * 7, C.pos, 2, 6);
+        ctx.beginPath(); ctx.arc(sx(z1), sy(sigmoid(z1)), 4.2, 0, Math.PI * 2); ctx.fillStyle = C.pos; ctx.fill();
+        if (u >= 1) text(ctx, `${k}`, sx(z1), sy(sigmoid(z1)) - 9, fMono(10, 600), C.pos, 'center');
+      }
+      const zz = walk[Math.min(5, Math.floor(prog + 1e-9))];
+      text(ctx, `1 号瓜：z = ${fmt(zz, 3)}，p = ${fmt(sigmoid(zz), 3)}`, R.x + 10, R.y + 34, fMono(12, 700), C.pos);
+    } else {
+      // the current point with its two projections
+      const x = sx(S.z), y = sy(pz);
+      line(ctx, x, R.b, x, y, A(C.ink, 0.4), 1.2, [3, 3]);
+      line(ctx, R.x, y, x, y, A(C.ink, 0.4), 1.2, [3, 3]);
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+      text(ctx, `z = ${fmt(S.z, 2)}`, x + 6, R.b - 22, fMono(11, 700), C.ink, 'left');
+      text(ctx, `p = ${fmt(pz, 3)}`, R.x + 6, y - 7, fMono(11, 700), C.ink);
+      if (i === 1) {
+        const a = ease(p), bw = Math.min(220, R.w * 0.5), bx = R.x + 12, by = R.y + 30;
+        ctx.globalAlpha = a;
+        ctx.fillStyle = A(C.pos, 0.75); ctx.fillRect(bx, by, bw * pz, 16);
+        ctx.fillStyle = A(C.neg, 0.75); ctx.fillRect(bx + bw * pz, by, bw * (1 - pz), 16);
+        text(ctx, `${fmt(pz, 2)} : ${fmt(1 - pz, 2)} = ${fmt(pz / (1 - pz), 2)} : 1`, bx, by + 34, fMono(12, 700), C.ink);
+        if (bw * pz > 34) text(ctx, '好瓜', bx + 4, by + 12, fSans(10.5, 700), C.plate);
+        ctx.globalAlpha = 1;
+      }
+    }
+    read.innerHTML = readoutHtml([['z（log-odds）', fmt(S.z, 3)], ['赔率 = eᶻ', fmt(Math.exp(S.z), 3)], ['p = σ(z)', fmt(pz, 3)], ['ln(p/(1−p))', fmt(Math.log(pz / (1 - pz)), 3)]]);
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('sig-z', v => fmt(v, 2), v => { S.z = v; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 6 · 导数
+   ===================================================================== */
+function figDeriv() {
+  const fig = document.getElementById('fig-deriv');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? 470 : 440));
+  const S = { m: -1 };
+  const read = document.getElementById('deriv-read');
+  const ratio = (m, d) => (lossY1(m + d) - lossY1(m)) / d;
+  function build() {
+    const m = S.m, g = dLoss(m), h = d2Loss(m), q = sigmoid(m);
+    return [
+      { k: 'curve', dur: 800, hold: 2600, title: '好瓜的损失曲线。', text: `y = 1 时，损失 l = −ln p = ln(1 + e^(−ŷ))。预测 ŷ 越大，损失越小。圆点是当前预测 ŷ = ${fmt(m, 2)}，损失 ${fmt(lossY1(m), 3)}。` },
+      { k: 'sec', dur: 1100, hold: 2800, title: '往右挪一步：Δŷ = 1。', text: `损失从 ${fmt(lossY1(m), 3)} 变成 ${fmt(lossY1(m + 1), 3)}，变化 Δl = ${fmt(lossY1(m + 1) - lossY1(m), 3)}。比值 Δl/Δŷ = ${fmt(ratio(m, 1), 3)}，是这一段的平均坡度。` },
+      { k: 'shrink', dur: 2600, hold: 2600, title: '步子越小，比值越稳定。', text: `Δŷ = 0.5 时比值是 ${fmt(ratio(m, 0.5), 3)}，0.1 时 ${fmt(ratio(m, 0.1), 3)}，0.01 时 ${fmt(ratio(m, 0.01), 3)}。割线慢慢转成了切线。` },
+      { k: 'tan', dur: 900, hold: 3000, title: '稳定下来的那个数就是导数。', text: `g = ∂l/∂ŷ = ${fmt(g, 3)}，就是切线的斜率。对数损失的公式 g = p − y = ${fmt(q, 3)} − 1 = ${fmt(g, 3)}，和挪步子算出来的一样。` },
+      { k: 'dir', dur: 900, hold: 2800, title: 'g 的正负告诉你往哪走。', text: `这里 g ${g < 0 ? '< 0' : '> 0'}：把 ŷ 调${g < 0 ? '大' : '小'}，损失会下降。沿 −g 的方向走一小步，叫梯度下降。` },
+      { k: 'gcurve', dur: 1500, hold: 2600, title: '把每一点的斜率画出来。', text: '下图是 g 随 ŷ 变化的曲线：上图左边很陡，g 接近 −1；右边很平，g 接近 0。' },
+      { k: 'h', dur: 900, hold: 3400, title: '斜率的斜率：二阶导 h。', text: `下图曲线在当前点的斜率是 h = ∂²l/∂ŷ² = ${fmt(h, 3)}。公式 h = p(1 − p) = ${fmt(q, 3)} × ${fmt(1 - q, 3)}。h 越大，上图的曲线在这里弯得越厉害，ŷ = 0 附近最弯。` },
+    ];
+  }
+  function draw(i, p) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const topH = Math.round((H - 20 - 36 - 34) * 0.6);
+    const RA = rect(46, 14, W - 60, topH), RB = rect(46, RA.b + 34, W - 60, H - RA.b - 34 - 36);
+    const sx = scale(-4, 4, RA.x, RA.r);
+    const syA = scale(0, 4.3, RA.b, RA.y), syB = scale(-1.05, 0.05, RB.b, RB.y);
+    axes(ctx, RA, sx, syA, { xt: [-4, -3, -2, -1, 0, 1, 2, 3, 4], yt: [0, 1, 2, 3, 4], xLabels: false, xf: v => fmt(v, 0), yl: '损失 l' });
+    const m = S.m, l0 = lossY1(m), g = dLoss(m), h = d2Loss(m);
+    ctx.save(); ctx.beginPath(); ctx.rect(RA.x, RA.y, RA.w, RA.h); ctx.clip();
+    plotFn(ctx, lossY1, -4, 4, sx, syA, 200); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.2; ctx.stroke();
+    let d = null;
+    if (i === 1) d = 1;
+    if (i === 2) d = Math.pow(10, lerp(0, -2, ease(p)));
+    if (d !== null) {
+      const l1 = lossY1(m + d), k = (l1 - l0) / d;
+      plotFn(ctx, v => l0 + k * (v - m), m - 2.5, m + d + 2.5, sx, syA, 2); ctx.strokeStyle = A(C.g, 0.8); ctx.lineWidth = 1.6; ctx.stroke();
+      line(ctx, sx(m), syA(l0), sx(m + d), syA(l0), C.muted, 1.2, [4, 3]);
+      line(ctx, sx(m + d), syA(l0), sx(m + d), syA(l1), C.g, 2);
+      ctx.beginPath(); ctx.arc(sx(m + d), syA(l1), 4, 0, Math.PI * 2); ctx.fillStyle = C.g; ctx.fill();
+      if (i === 1) {
+        text(ctx, 'Δŷ = 1', (sx(m) + sx(m + d)) / 2, syA(l0) + 16, fMono(11, 600), C.muted, 'center');
+        text(ctx, `Δl = ${fmt(l1 - l0, 3)}`, sx(m + d) + 8, (syA(l0) + syA(l1)) / 2 + 4, fMono(11, 600), C.g);
+      }
+      text(ctx, `Δŷ = ${fmt(d, d < 0.1 ? 3 : 2)}   Δl/Δŷ = ${fmt(k, 3)}`, RA.r - 8, RA.y + 18, fMono(12, 700), C.g, 'right');
+    }
+    if (i >= 3) {
+      const a = i === 3 ? ease(p) : 1;
+      ctx.globalAlpha = a;
+      plotFn(ctx, v => l0 + g * (v - m), m - 1.8, m + 1.8, sx, syA, 2); ctx.strokeStyle = C.g; ctx.lineWidth = 2.2; ctx.stroke();
+      ctx.globalAlpha = 1;
+      text(ctx, `切线斜率 g = ${fmt(g, 3)}`, RA.r - 8, RA.y + 18, fMono(12, 700), C.g, 'right');
+    }
+    ctx.restore();
+    if (i === 4) {
+      const a = ease(p), dir = g < 0 ? 1 : -1;
+      ctx.globalAlpha = a;
+      const y = syA(l0) - 20;
+      arrow(ctx, sx(m), y, sx(m) + dir * 70, y, C.ink, 2.2, 9);
+      text(ctx, g < 0 ? '调大 ŷ，损失下降' : '调小 ŷ，损失下降', sx(m) + dir * 76, y + 4, fSans(11.5, 700), C.ink, dir > 0 ? 'left' : 'right');
+      ctx.globalAlpha = 1;
+    }
+    ctx.beginPath(); ctx.arc(sx(m), syA(l0), 6, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+    ctx.beginPath(); ctx.arc(sx(m), syA(l0), 2.2, 0, Math.PI * 2); ctx.fillStyle = C.plate; ctx.fill();
+    // bottom: slope curve
+    axes(ctx, RB, sx, syB, { xt: [-4, -3, -2, -1, 0, 1, 2, 3, 4], yt: [-1, -0.5, 0], xf: v => fmt(v, 0), yf: v => fmt(v, 1), xl: 'ŷ →', yl: i >= 5 ? '斜率 g' : '' });
+    if (i >= 5) {
+      ctx.save(); ctx.beginPath(); ctx.rect(RB.x, RB.y, RB.w * (i === 5 ? ease(p) : 1), RB.h); ctx.clip();
+      plotFn(ctx, dLoss, -4, 4, sx, syB, 160); ctx.strokeStyle = C.g; ctx.lineWidth = 2.2; ctx.stroke();
+      ctx.restore();
+      if (i === 6) {
+        const a = ease(p);
+        ctx.globalAlpha = a;
+        ctx.save(); ctx.beginPath(); ctx.rect(RB.x, RB.y, RB.w, RB.h); ctx.clip();
+        plotFn(ctx, v => g + h * (v - m), m - 1.6, m + 1.6, sx, syB, 2); ctx.strokeStyle = C.h; ctx.lineWidth = 2.2; ctx.stroke();
+        ctx.restore();
+        text(ctx, `斜率 h = ${fmt(h, 3)}`, RB.r - 8, RB.y + 16, fMono(12, 700), C.h, 'right');
+        ctx.globalAlpha = 1;
+      }
+      ctx.beginPath(); ctx.arc(sx(m), syB(g), 5, 0, Math.PI * 2); ctx.fillStyle = C.g; ctx.fill();
+      line(ctx, sx(m), syB(g) - 6, sx(m), syA(l0) + 8 > RA.b ? RA.b : syA(l0) + 8, A(C.ink, 0.18), 1, [2, 3]);
+    } else {
+      text(ctx, '（第 5 步会在这里画出斜率曲线）', RB.x + RB.w / 2, RB.y + RB.h / 2, fSans(11.5), C.muted, 'center');
+    }
+    read.innerHTML = readoutHtml([
+      ['ŷ', fmt(m, 2)], ['p = σ(ŷ)', fmt(sigmoid(m), 3)], ['l', fmt(l0, 3)],
+      ['挪 0.001 算出的斜率', fmt(ratio(m, 0.001), 3)], ['g = p − 1', `<span class="cg">${fmt(g, 3)}</span>`], ['h = p(1 − p)', `<span class="ch">${fmt(h, 3)}</span>`],
+    ]);
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('deriv-m', v => fmt(v, 2), v => { S.m = v; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+/* =====================================================================
+   XGBoost 预备课 · figures (part 3) + boot
+   ===================================================================== */
+
+/* =====================================================================
+   图 7 · 抛物线的最低点
+   ===================================================================== */
+function figPara() {
+  const fig = document.getElementById('fig-para');
+  const st = new Stage(fig.querySelector('canvas'), w => Math.round(clamp(w * 0.46, 300, 390)));
+  const S = { G: 3, H: 2, lam: 1 };
+  const eq = document.getElementById('para-eq');
+  const calc = () => {
+    const a = 0.5 * (S.H + S.lam), b = S.G;
+    return { a, b, w: -b / (2 * a), q: -(b * b) / (4 * a) };
+  };
+  function build() {
+    const { a, b, w, q } = calc();
+    const a2 = 0.5 * (S.H + S.lam + 3), w2 = -b / (2 * a2);
+    return [
+      { k: 'para', dur: 800, hold: 2600, title: '抛物线 a·w² + b·w。', text: `这里 a = ${fmt(a, 2)}，b = ${fmt(b, 2)}。a > 0，开口朝上，所以有一个最低点。` },
+      { k: 'roll', dur: 1800, hold: 2400, title: '小球会滚到最低点。', text: '最低点左边是下坡，右边是上坡。小球停下的地方，切线是水平的：斜率等于 0。' },
+      { k: 'solve', dur: 1500, hold: 3200, title: '斜率等于 0，解出 w。', text: `这条抛物线的斜率是 2a·w + b（第 6 章的导数）。令 2a·w + b = 0，得到 w = −b/(2a) = −${par(b, 2)}/(2 × ${fmt(a, 2)}) = ${fmt(w, 3)}。` },
+      { k: 'min', dur: 900, hold: 2800, title: '最低点有多低？', text: `把 w = −b/(2a) 代回 a·w² + b·w，化简得到最低值 −b²/(4a) = ${fmt(q, 3)}。` },
+      { k: 'map', dur: 900, hold: 3200, title: '换成 XGBoost 的写法。', text: `一片叶子要最小化 G·w + ½(H + λ)·w²。对照一下：a = ½(H + λ) = ½ × (${fmt(S.H, 2)} + ${fmt(S.lam, 1)}) = ${fmt(a, 2)}，b = G = ${fmt(S.G, 2)}。` },
+      { k: 'result', dur: 900, hold: 3400, title: '代进去，就是正文的两个公式。', text: `w* = −b/(2a) = −G/(H + λ) = ${fmt(w, 3)}；最低值 = −b²/(4a) = −½·G²/(H + λ) = ${fmt(q, 3)}。` },
+      { k: 'shrink', dur: 1100, hold: 3400, title: 'λ 越大，分数越靠近 0。', text: `虚线是 λ 再加 3 的样子：抛物线更陡，最低点从 ${fmt(w, 3)} 移到 ${fmt(w2, 3)}，离 0 更近。λ 就是这样把叶子分数往回拉的。` },
+    ];
+  }
+  function draw(i, p) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const { a, b, w, q } = calc();
+    const R = rect(46, 14, W - 60, H - 14 - 42);
+    const span = clamp(Math.ceil(Math.abs(w)) + 2, 3, 12);
+    const f = v => a * v * v + b * v;
+    const lo = q - 0.9, hi = Math.max(q + 5.5, 1.5);
+    const sx = scale(-span, span, R.x, R.r), sy = scale(lo, hi, R.b, R.y);
+    axes(ctx, R, sx, sy, { xt: ticks(-span, span, 8), yt: ticks(lo, hi, 5), xf: v => fmt(v, 0), yf: v => fmt(v, 0), xl: 'w（叶子分数）→' });
+    line(ctx, sx(0) + 0.5, R.y, sx(0) + 0.5, R.b, C.faint);
+    if (lo < 0 && hi > 0) line(ctx, R.x, sy(0) + 0.5, R.r, sy(0) + 0.5, C.faint);
+    ctx.save(); ctx.beginPath(); ctx.rect(R.x, R.y, R.w, R.h); ctx.clip();
+    if (i === 6) {
+      const a2 = 0.5 * (S.H + S.lam + 3);
+      plotFn(ctx, v => a2 * v * v + b * v, -span, span, sx, sy, 200);
+      ctx.strokeStyle = C.muted; ctx.lineWidth = 1.6; ctx.setLineDash([6, 4]); ctx.globalAlpha = ease(p); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      const w2 = -b / (2 * a2), q2 = -(b * b) / (4 * a2);
+      ctx.globalAlpha = ease(p);
+      ctx.beginPath(); ctx.arc(sx(w2), sy(q2), 4.5, 0, Math.PI * 2); ctx.fillStyle = C.muted; ctx.fill();
+      text(ctx, `λ + 3：w* = ${fmt(w2, 3)}`, sx(w2) + (w2 < 0 ? 8 : -8), sy(q2) - 10, fMono(11, 600), C.muted, w2 < 0 ? 'left' : 'right');
+      ctx.globalAlpha = 1;
+    }
+    plotFn(ctx, f, -span, span, sx, sy, 200); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.4; ctx.stroke();
+    ctx.restore();
+    // the ball
+    let bwv = w;
+    if (i === 0) bwv = null;
+    if (i === 1) { const start = clamp(w + (w <= 0 ? 2.4 : -2.4), -span + 0.3, span - 0.3); bwv = lerp(start, w, ease(p)); }
+    if (bwv !== null) {
+      const x = sx(bwv), y = sy(f(bwv));
+      const slope = 2 * a * bwv + b;
+      const dx = 0.9;
+      ctx.save(); ctx.beginPath(); ctx.rect(R.x, R.y, R.w, R.h); ctx.clip();
+      line(ctx, sx(bwv - dx), sy(f(bwv) - slope * dx), sx(bwv + dx), sy(f(bwv) + slope * dx), C.g, 2);
+      ctx.restore();
+      ctx.beginPath(); ctx.arc(x, y - 9, 8, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+      text(ctx, `斜率 = ${fmt(slope, 2)}`, x + 14, y - 22, fMono(11, 600), C.g);
+    }
+    if (i >= 3) {
+      const x = sx(w), y = sy(q);
+      line(ctx, x, y, x, R.b, A(C.ink, 0.5), 1.2, [3, 3]);
+      line(ctx, R.x, y, x, y, A(C.ink, 0.5), 1.2, [3, 3]);
+      text(ctx, `w* = ${fmt(w, 3)}`, x, R.b - 6, fMono(11.5, 700), C.ink, 'center');
+      text(ctx, `最低值 ${fmt(q, 3)}`, R.x + 6, y + 15, fMono(11.5, 700), C.ink);
+    }
+    // algebra box
+    const lines = [];
+    if (i === 2) lines.push(['斜率 = 2a·w + b', 0], ['2a·w + b = 0', 0.3], [`w = −b/(2a) = ${fmt(w, 3)}`, 0.6]);
+    if (i === 3) lines.push([`最低值 = −b²/(4a) = ${fmt(q, 3)}`, 0]);
+    if (i === 4) lines.push(['a = ½(H + λ)', 0], ['b = G', 0.35]);
+    if (i >= 5) lines.push(['w* = −G/(H + λ)', 0], ['最低值 = −½·G²/(H + λ)', i === 5 ? 0.4 : 0]);
+    lines.forEach(([t, at], k) => {
+      const al = i === 2 || i === 4 || i === 5 ? ease(sub01(p, at, at + 0.35)) : 1;
+      if (al <= 0) return;
+      ctx.globalAlpha = al;
+      text(ctx, t, R.r - 10, R.y + 20 + k * 20, fMath(16, false), C.ink, 'right');
+      ctx.globalAlpha = 1;
+    });
+    eq.innerHTML = `<i>a</i> = ½(<i class="ch">H</i> + <i>λ</i>) = <span class="num">${fmt(a, 3)}</span>，<i>b</i> = <i class="cg">G</i> = <span class="num">${fmt(b, 3)}</span>　→　<i>w</i>* = −<i>b</i>/(2<i>a</i>) = <span class="num">${fmt(w, 3)}</span>，最低值 = −<i>b</i>²/(4<i>a</i>) = <span class="num">${fmt(q, 3)}</span>`;
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('para-G', v => fmt(v, 1), v => { S.G = v; tl.rebuild('keep'); });
+  bindRange('para-H', v => fmt(v, 2), v => { S.H = v; tl.rebuild('keep'); });
+  bindRange('para-lam', v => fmt(v, 1), v => { S.lam = v; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 8 · 0 阶、1 阶、2 阶
+   ===================================================================== */
+function figTaylor2() {
+  const fig = document.getElementById('fig-taylor2');
+  const st = new Stage(fig.querySelector('canvas'), w => Math.round(clamp(w * 0.46, 300, 390)));
+  const S = { m: -1, f: 1 };
+  const read = document.getElementById('tay-read');
+  const vals = () => {
+    const m = S.m, l0 = lossY1(m), g = dLoss(m), h = d2Loss(m), f = S.f;
+    return { m, l0, g, h, f, tv: lossY1(m + f), a0: l0, a1: l0 + g * f, a2: l0 + g * f + 0.5 * h * f * f };
+  };
+  function build() {
+    const v = vals();
+    const d = x => fmt(Math.abs(x - v.tv), 3);
+    return [
+      { k: 'z0', dur: 800, hold: 2800, title: '0 阶：只知道当前值。', text: `当前 ŷ = ${fmt(v.m, 2)}，损失 l₀ = ${fmt(v.l0, 3)}。只凭这一个数，只能画一条水平线去猜，离开一点就不准。` },
+      { k: 'z1', dur: 1000, hold: 2800, title: '1 阶：加上斜率。', text: `加上 g = ${fmt(v.g, 3)}，得到切线 l₀ + g·f。近处很准，走远了越偏越多。` },
+      { k: 'z2', dur: 1400, hold: 3000, title: '2 阶：再加上弯曲。', text: `加上 h = ${fmt(v.h, 3)}，切线弯成抛物线 l₀ + g·f + ½h·f²。它和真曲线在这一点的值、斜率、弯曲都一样，所以贴得更久。` },
+      { k: 'probe', dur: 1000, hold: 3600, title: `往前走 f = ${fmt(v.f, 2)}，三种猜法比一比。`, text: `真实值 ${fmt(v.tv, 3)}。0 阶猜 ${fmt(v.a0, 3)}（差 ${d(v.a0)}），1 阶猜 ${fmt(v.a1, 3)}（差 ${d(v.a1)}），2 阶猜 ${fmt(v.a2, 3)}（差 ${d(v.a2)}）。拖动“往前走 f”看看。` },
+      { k: 'min', dur: 1000, hold: 3400, title: '抛物线的最低点能直接算。', text: `2 阶近似是一条抛物线，最低点在 f = −g/h = ${fmt(-v.g / v.h, 2)}（第 7 章的公式，这里还没加 λ）。XGBoost 就是用这样的抛物线来决定叶子分数。` },
+    ];
+  }
+  function draw(i, p) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const v = vals();
+    const R = rect(46, 14, W - 60, H - 14 - 42);
+    const sx = scale(-4, 3.5, R.x, R.r), sy = scale(-0.3, 4.3, R.b, R.y);
+    axes(ctx, R, sx, sy, { xt: [-4, -3, -2, -1, 0, 1, 2, 3], yt: [0, 1, 2, 3, 4], xf: v2 => fmt(v2, 0), xl: 'ŷ →', yl: '损失 l（好瓜）' });
+    ctx.save(); ctx.beginPath(); ctx.rect(R.x, R.y, R.w, R.h); ctx.clip();
+    plotFn(ctx, lossY1, -4, 3.5, sx, sy, 200); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.4; ctx.stroke();
+    // 0th order
+    line(ctx, R.x, sy(v.l0), R.r, sy(v.l0), i === 0 ? C.ink2 : C.muted, i === 0 ? 2 : 1.2, i === 0 ? [] : [4, 4]);
+    if (i >= 1) {
+      const e = i === 1 ? ease(p) * 3 : 3;
+      plotFn(ctx, x => v.l0 + v.g * (x - v.m), v.m - e, v.m + e, sx, sy, 2);
+      ctx.strokeStyle = C.g; ctx.lineWidth = i === 1 ? 2.2 : 1.6; ctx.stroke();
+    }
+    if (i >= 2) {
+      const k = i === 2 ? ease(p) : 1;
+      plotFn(ctx, x => v.l0 + v.g * (x - v.m) + 0.5 * v.h * k * (x - v.m) ** 2, -4, 3.5, sx, sy, 200);
+      ctx.strokeStyle = C.h; ctx.lineWidth = 2.4; ctx.stroke();
+    }
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(sx(v.m), sy(v.l0), 6, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+    if (i >= 3) {
+      const x = sx(v.m + v.f);
+      const a = i === 3 ? ease(p) : 1;
+      ctx.globalAlpha = a;
+      line(ctx, x, R.y, x, R.b, A(C.ink, 0.3), 1, [3, 3]);
+      const marks = [[v.tv, C.ink, '真实'], [v.a0, C.muted, '0 阶'], [v.a1, C.g, '1 阶'], [v.a2, C.h, '2 阶']];
+      marks.forEach(([val, col, lab], k) => {
+        const y = sy(val);
+        if (y < R.y || y > R.b) return;
+        ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill();
+        if (k > 0) line(ctx, x + 10 + k * 5, sy(v.tv), x + 10 + k * 5, y, col, 2);
+        text(ctx, `${lab} ${fmt(val, 3)}`, x - 8, y + (k % 2 ? -7 : 13), fMono(10.5, 600), col, 'right');
+      });
+      ctx.globalAlpha = 1;
+    }
+    if (i === 4) {
+      const fm = -v.g / v.h, xm = v.m + fm;
+      if (xm < 3.5) {
+        const qm = v.l0 + v.g * fm + 0.5 * v.h * fm * fm;
+        const a = ease(p);
+        ctx.globalAlpha = a;
+        const y = sy(qm);
+        if (y > R.y && y < R.b) { ctx.beginPath(); ctx.arc(sx(xm), y, 5, 0, Math.PI * 2); ctx.fillStyle = C.h; ctx.fill(); }
+        arrow(ctx, sx(v.m), R.b - 12, sx(Math.min(xm, 3.5)), R.b - 12, C.h, 2, 8);
+        text(ctx, `−g/h = ${fmt(fm, 2)}`, (sx(v.m) + sx(Math.min(xm, 3.5))) / 2, R.b - 18, fMono(11, 700), C.h, 'center');
+        ctx.globalAlpha = 1;
+      } else {
+        text(ctx, `最低点在 ŷ = ${fmt(xm, 2)}，超出画面`, R.r - 8, R.b - 12, fSans(11.5, 700), C.h, 'right');
+      }
+    }
+    read.innerHTML = readoutHtml([
+      ['l₀', fmt(v.l0, 3)], ['g', `<span class="cg">${fmt(v.g, 3)}</span>`], ['h', `<span class="ch">${fmt(v.h, 3)}</span>`],
+      [`真实 l(ŷ + ${fmt(v.f, 2)})`, fmt(v.tv, 3)], ['0 阶', fmt(v.a0, 3)], ['1 阶', fmt(v.a1, 3)], ['2 阶', fmt(v.a2, 3)],
+    ]);
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('tay-m', v => fmt(v, 2), v => { S.m = v; tl.rebuild('keep'); });
+  bindRange('tay-f', v => fmt(v, 2), v => { S.f = v; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 9 · 三棵候选树比总分
+   ===================================================================== */
+function figReg() {
+  const fig = document.getElementById('fig-reg');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 620 ? 470 : 330));
+  const S = { gam: 0.5, lam: 1 };
+  const lf = w => ({ leaf: true, w });
+  const sp = (f, thr, left, right) => ({ leaf: false, f, thr, left, right });
+  const evalT = (n, x) => { while (!n.leaf) n = x[n.f] < n.thr ? n.left : n.right; return n.w; };
+  const treeC = sp(1, 0.2045, sp(0, 0.412, lf(-3), sp(0, 0.537, lf(3), lf(-3))), sp(0, 0.3815, lf(-3), lf(3)));
+  const leavesOf = t => { const out = []; (function walk(n) { if (n.leaf) out.push(n.w); else { walk(n.left); walk(n.right); } })(t); return out; };
+  const logloss = m => sum(ALLIDX.map(i => LOSS.logistic.loss(MY[i], m(i))));
+  const TREES = [
+    { name: 'A · 不切', ws: [0], loss: logloss(() => 0) },
+    { name: 'B · 正文的第一棵树', ws: WS, loss: logloss(i => T0.leafOf(MX[i]).w) },
+    { name: 'C · 切得很细', ws: leavesOf(treeC), loss: logloss(i => evalT(treeC, MX[i])) },
+  ];
+  const parts = t => {
+    const s2 = sum(t.ws.map(w => w * w));
+    return { loss: t.loss, gT: S.gam * t.ws.length, lw: 0.5 * S.lam * s2, s2, T: t.ws.length };
+  };
+  const totals = () => TREES.map(t => { const q = parts(t); return q.loss + q.gT + q.lw; });
+  const winner = () => { const tt = totals(); return tt.indexOf(Math.min(...tt)); };
+  function build() {
+    const P = TREES.map(parts);
+    const win = winner();
+    const why = [
+      `γ 大到每多一片叶子都不划算，A 胜出：模型太简单，什么都没学到。`,
+      'B 比 A 准得多，又不像 C 那样靠极端分数硬背训练集，所以总分最低。',
+      '罚分太轻，C 胜出：它把训练集背了下来，换一批瓜就不灵了，这就是过拟合。',
+    ][win];
+    return [
+      { k: 'intro', dur: 700, hold: 2800, title: '三棵候选树。', text: 'A 不切，只有 1 片叶子；B 是正文里的第一棵树，3 片叶子；C 切得很细，5 片叶子、分数都是 ±3，训练集里每个瓜都被它分对了。方块里是每片叶子的分数。' },
+      { k: 'loss', dur: 1200, hold: 3000, title: '先只看训练误差。', text: `把树的分数当作预测，算 17 个瓜的对数损失之和：A = ${fmt(P[0].loss, 2)}，B = ${fmt(P[1].loss, 2)}，C = ${fmt(P[2].loss, 2)}。只看这一项，C 最好。` },
+      { k: 'gam', dur: 1000, hold: 3000, title: '加上 γT。', text: `γ = ${fmt(S.gam, 1)}：A 罚 ${fmt(P[0].gT, 2)}，B 罚 ${fmt(P[1].gT, 2)}，C 罚 ${fmt(P[2].gT, 2)}。叶子越多，罚得越多。` },
+      { k: 'lam', dur: 1000, hold: 3200, title: '加上 ½λΣw²。', text: `λ = ${fmt(S.lam, 1)}：A 的 Σw² = 0；B 的 Σw² = ${fmt(P[1].s2, 3)}，罚 ${fmt(P[1].lw, 3)}；C 的 Σw² = ${fmt(P[2].s2, 0)}，罚 ${fmt(P[2].lw, 2)}。分数越极端，罚得越多。` },
+      { k: 'win', dur: 800, hold: 3400, title: `总分最低的是 ${'ABC'[win]}。`, text: why },
+      { k: 'play', dur: 600, hold: 3600, title: '自己拖拖看。', text: '把 γ 和 λ 都拖到 0，C 会赢，这就是过拟合；把 γ 拖到 3，A 会赢，模型太简单。XGBoost 默认 λ = 1，就是在防 C 这种树。' },
+    ];
+  }
+  function draw(i, p) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h, narrow = W < 620;
+    const P = TREES.map(parts);
+    const tot = P.map(q => q.loss + q.gT + q.lw);
+    const win = tot.indexOf(Math.min(...tot));
+    const rowH = (H - 40) / 3;
+    const barX = narrow ? 14 : Math.round(W * 0.42), barW = (narrow ? W - 28 : W - barX - 16) - 70;
+    const xmax = Math.max(12, ...tot) * 1.04;
+    const sx = scale(0, xmax, barX, barX + barW);
+    const gL = i === 1 ? ease(p) : i > 1 ? 1 : 0;
+    const gG = i === 2 ? ease(p) : i > 2 ? 1 : 0;
+    const gW = i === 3 ? ease(p) : i > 3 ? 1 : 0;
+    TREES.forEach((t, r) => {
+      const y0 = 10 + r * rowH;
+      if (i >= 4 && r === win) {
+        ctx.fillStyle = A(C.mark, 0.45); rr(ctx, 6, y0 - 2, W - 12, rowH - 6, 6); ctx.fill();
+        text(ctx, '总分最低', W - 14, y0 + 16, fSans(11.5, 700), C.ink, 'right');
+      }
+      text(ctx, `${t.name}（T = ${t.ws.length}）`, 14, y0 + 16, fSans(12.5, 700), C.ink);
+      // leaf strip
+      const bw = Math.min(46, ((narrow ? W - 28 : barX - 40) - 4 * (t.ws.length - 1)) / t.ws.length);
+      t.ws.forEach((w, k) => {
+        const x = 14 + k * (bw + 4), y = y0 + 26;
+        rr(ctx, x, y, bw, 24, 4);
+        ctx.fillStyle = w === 0 ? C.plate2 : A(signCol(w), 0.14); ctx.fill();
+        ctx.strokeStyle = w === 0 ? C.rule : signCol(w); ctx.lineWidth = 1; ctx.stroke();
+        text(ctx, Math.abs(w) >= 1 && Number.isInteger(w) ? fmtS(w, 0) : fmt(w, bw < 40 ? 2 : 3), x + bw / 2, y + 16, fMono(bw < 40 ? 9.5 : 10.5, 600), w === 0 ? C.muted : signCol(w), 'center');
+      });
+      // bar
+      const by = narrow ? y0 + 60 : y0 + 26, bh = 22;
+      let acc = 0;
+      const segs = [[P[r].loss * gL, C.ink2, '误差'], [P[r].gT * gG, C.h, 'γT'], [P[r].lw * gW, C.g, '½λΣw²']];
+      segs.forEach(([v, col, lab]) => {
+        if (v <= 0) return;
+        const x0 = sx(acc), x1 = sx(acc + v);
+        ctx.fillStyle = A(col, col === C.ink2 ? 0.75 : 0.8); ctx.fillRect(x0, by, x1 - x0, bh);
+        ctx.strokeStyle = C.plate; ctx.lineWidth = 1; ctx.strokeRect(x0, by, x1 - x0, bh);
+        if (x1 - x0 > 44) text(ctx, lab, (x0 + x1) / 2, by + 15, fSans(10.5, 700), C.plate, 'center');
+        acc += v;
+      });
+      line(ctx, sx(0) + 0.5, by - 4, sx(0) + 0.5, by + bh + 4, C.faint);
+      if (acc > 0) text(ctx, fmt(acc, 2), sx(acc) + 6, by + 15, fMono(12, 700), C.ink);
+    });
+    text(ctx, '总分 = 训练误差 + γT + ½λΣw²（越小越好）', 14, H - 12, fSans(11.5), C.muted);
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('reg-gam', v => fmt(v, 1), v => { S.gam = v; tl.rebuild('keep'); });
+  bindRange('reg-lam', v => fmt(v, 1), v => { S.lam = v; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 10 · 公式翻译器
+   ===================================================================== */
+function figTrans() {
+  const fig = document.getElementById('fig-trans');
+  const fEl = document.getElementById('trans-f'), sayEl = document.getElementById('trans-say'), codeEl = document.getElementById('trans-code');
+  const tabs = document.getElementById('trans-tabs');
+  const root = T0.root, Lf = root.left, Rt = root.right;
+  const GL = Lf.G, HL = Lf.H, GR = Rt.G, HR = Rt.H, G0 = root.G, H0 = root.H;
+  const sc = (G, H) => (G * G) / (H + 1);
+  const gain = 0.5 * (sc(GL, HL) + sc(GR, HR) - sc(G0, H0));
+  const w3 = T0.leafOf(MX[0]).w, m1 = DEMO.eta * w3;
+  const om = 0.5 * sum(WS.map(w => w * w));
+  const P = (k, html) => `<span class="part" data-k="${k}" tabindex="0" role="button">${html}</span>`;
+  const K = (k, s) => `<span class="tok" data-k="${k}">${s}</span>`;
+  const fr = (a, b) => `<span class="frac"><span>${a}</span><span>${b}</span></span>`;
+  const op = (t, b) => `<span class="op"><span class="t">${t}</span><span class="s">Σ</span><span class="b">${b}</span></span>`;
+  const SPECS = [
+    {
+      tab: '更新预测',
+      html: `${P('yt', '<i>ŷ</i><sup>(<i>t</i>)</sup>')} = ${P('yp', '<i>ŷ</i><sup>(<i>t</i>−1)</sup>')} + ${P('eta', '<i>η</i>')} · ${P('ft', '<i>f<sub>t</sub></i>(<i>x</i>)')}`,
+      say: ['ŷ 上标 t 等于 ŷ 上标 t 减 1，加 η 乘 f t of x', '新预测 = 旧预测 + 学习率 × 新这棵树的输出', 'ŷ⁽ᵗ⁾ = ŷ⁽ᵗ⁻¹⁾ + η·f_t(x)'],
+      code: `${K('yt', 'y_hat_after[t]')} = ${K('yp', 'y_hat_after[t - 1]')} + ${K('eta', 'eta')} * ${K('ft', 'tree[t](x)')}`,
+      parts: [
+        ['yt', 'ŷ⁽ᵗ⁾：第 t 轮之后的预测。', '帽子表示预测值，右上角括号里的 t 是轮次，不是乘方（第 1 章）。'],
+        ['yp', 'ŷ⁽ᵗ⁻¹⁾：上一轮的预测。', '也就是前面 t − 1 棵树加起来的结果。'],
+        ['eta', 'η：学习率。', '读 eta（伊塔），XGBoost 参数 eta，默认 0.3：新树的输出只采纳 30%。'],
+        ['ft', 'fₜ(x)：第 t 棵树的输出。', '把样本 x 放进第 t 棵树，落进哪片叶子就取哪片的分数（第 3 章）。'],
+        ['all', '代入数字。', `1 号瓜：ŷ⁽⁰⁾ = 0，第 1 棵树给它 ${fmt(w3, 3)}，所以 ŷ⁽¹⁾ = 0 + 0.3 × ${fmt(w3, 3)} = ${fmt(m1, 3)}。`],
+      ],
+    },
+    {
+      tab: '目标函数',
+      html: `${P('obj', 'Obj')} = ${P('si', op('&nbsp;', 'i'))} ${P('l', '<i>l</i>(<i>y<sub>i</sub></i>, <i>ŷ<sub>i</sub></i>)')} + ${P('sk', op('&nbsp;', 'k'))} ${P('om', 'Ω(<i>f<sub>k</sub></i>)')}`,
+      say: ['Obj 等于：对所有 i 求和 l of y i、ŷ i，加上对所有 k 求和 Ω of f k', '目标 = 所有样本的误差加起来 + 所有树的罚分加起来', 'Obj = Σᵢ l(yᵢ, ŷᵢ) + Σₖ Ω(fₖ)'],
+      code: `${K('obj', 'obj')} = ${K('si', 'sum(')}${K('l', 'loss(y[i], y_hat[i])')} ${K('si', 'for i in samples)')} + ${K('sk', 'sum(')}${K('om', 'omega(f)')} ${K('sk', 'for f in trees)')}`,
+      parts: [
+        ['obj', 'Obj：目标函数。', 'objective 的缩写。训练就是想办法让它尽量小。'],
+        ['si', 'Σᵢ：对所有样本求和。', 'i 是样本编号，从第 1 个加到最后一个（第 2 章）。'],
+        ['l', 'l(yᵢ, ŷᵢ)：第 i 个样本的损失。', '真实答案 yᵢ 和预测 ŷᵢ 差了多少（第 4 章）。'],
+        ['sk', 'Σₖ：对所有树求和。', 'k 是树的编号。'],
+        ['om', 'Ω(fₖ)：第 k 棵树的罚分。', '就是开头拆过的那个公式（第 9 章）。'],
+        ['all', '代入数字。', `第一项：训练开始时每个瓜的损失都是 ln 2 ≈ 0.693，17 个合计 ${fmt(NM * Math.log(2), 3)}。第二项：正文第一棵树的罚分 Ω = ${fmt(om, 3)}（γ = 0，λ = 1）。`],
+      ],
+    },
+    {
+      tab: '复杂度 Ω',
+      html: `${P('omega', 'Ω(<i>f</i>)')} = ${P('gamma', '<i>γ</i>')}${P('T', '<i>T</i>')} + ${P('lam', fr('1', '2') + '<i>λ</i>')} ${P('sum', op('T', 'j=1'))}${P('wj', '<i>w<sub>j</sub></i>')}${P('sq', '<sup>2</sup>')}`,
+      say: ['Ω f 等于 γ 乘 T，加上二分之一乘 λ，再乘“j 从 1 到 T，w j 的平方”加起来', '一棵树的罚分 = 每片叶子的罚金 × 叶子数 + ½ × λ × 所有叶子分数的平方和', 'Ω(f) = γ·T + ½·λ·(w₁² + w₂² + … + w_T²)'],
+      code: `${K('omega', 'omega')} = ${K('gamma', 'gamma')} * ${K('T', 'T')} + ${K('lam', '0.5 * lam')} * ${K('sum', 'sum(')}${K('wj', 'wj')}${K('sq', ' ** 2')} ${K('sum', 'for wj in w)')}`,
+      parts: [
+        ['omega', 'Ω(f)：树 f 的罚分。', 'Ω 读 omega，f 是一棵树。'],
+        ['gamma', 'γ：每片叶子的罚金。', '参数 gamma，默认 0。'],
+        ['T', 'T：叶子数。', 'γT = γ × T。'],
+        ['lam', '½λ：分数罚得多狠。', '参数 lambda，默认 1。½ 是为了求导时约掉 2。'],
+        ['sum', 'Σ：j 从 1 加到 T。', '对每片叶子算一项，再加起来（第 2 章）。'],
+        ['wj', 'wⱼ：第 j 片叶子的分数。', `这棵树是 ${WS.map(w => fmt(w, 3)).join('、')}。`],
+        ['sq', '²：平方。', '分数离 0 越远，罚得越多。'],
+        ['all', '代入数字。', `γ = 0，λ = 1：Ω = 0 × 3 + ½ × 1 × (${WS.map(w => fmt(w * w, 3)).join(' + ')}) = ${fmt(om, 3)}。`],
+      ],
+    },
+    {
+      tab: '梯度 g、h',
+      html: `${P('g', '<i class="cg">g<sub>i</sub></i>')} = ${P('dl', fr('∂<i>l</i>', '∂<i>ŷ<sub>i</sub></i>'))} = ${P('gf', '<i>p<sub>i</sub></i> − <i>y<sub>i</sub></i>')}<br>${P('h', '<i class="ch">h<sub>i</sub></i>')} = ${P('d2l', fr('∂<sup>2</sup><i>l</i>', '∂<i>ŷ<sub>i</sub></i><sup>2</sup>'))} = ${P('hf', '<i>p<sub>i</sub></i>(1 − <i>p<sub>i</sub></i>)')}`,
+      say: ['g i 等于 l 对 ŷ i 的偏导，等于 p i 减 y i；h i 等于 l 对 ŷ i 的二阶偏导，等于 p i 乘 1 减 p i', 'g：预测该往哪边改、改多急；h：损失曲线有多弯', 'gᵢ = ∂l/∂ŷᵢ = pᵢ − yᵢ，hᵢ = ∂²l/∂ŷᵢ² = pᵢ(1 − pᵢ)'],
+      code: [
+        'p[i] = 1 / (1 + math.exp(-y_hat[i]))      <span class="c"># 先把分数换成概率</span>',
+        `${K('g', 'g[i]')} = ${K('gf', 'p[i] - y[i]')}                         ${K('dl', '<span class="c"># 一阶导</span>')}`,
+        `${K('h', 'h[i]')} = ${K('hf', 'p[i] * (1 - p[i])')}                   ${K('d2l', '<span class="c"># 二阶导</span>')}`,
+      ].join('\n'),
+      parts: [
+        ['g', 'gᵢ：一阶导。', '第 i 个样本的损失曲线在当前预测处的斜率（第 6 章）。'],
+        ['dl', '∂l/∂ŷᵢ：l 对 ŷᵢ 求导。', 'ŷᵢ 挪一点点，损失变多少。∂ 读作“偏”。'],
+        ['gf', 'pᵢ − yᵢ：求导的结果。', '对数损失求导后，正好是“预测概率 − 真实答案”。'],
+        ['h', 'hᵢ：二阶导。', '斜率的斜率：损失曲线弯得多厉害。'],
+        ['d2l', '∂²l/∂ŷᵢ²：求两次导。', '右上角的 2 表示“两次”，不是平方。'],
+        ['hf', 'pᵢ(1 − pᵢ)：求导的结果。', 'p = 0.5 时最大（0.25），越接近 0 或 1 越小。'],
+        ['all', '代入数字。', '第一轮所有瓜 p = 0.5。1 号瓜是好瓜（y = 1）：g₁ = 0.5 − 1 = −0.5，h₁ = 0.5 × 0.5 = 0.25。坏瓜的 g = +0.5，h 也是 0.25。'],
+      ],
+    },
+    {
+      tab: '叶子求和 G',
+      html: `${P('G', '<i class="cg">G<sub>j</sub></i>')} = ${P('sum', op('&nbsp;', 'i∈I<sub>j</sub>'))} ${P('g', '<i class="cg">g<sub>i</sub></i>')}　　${P('H', '<i class="ch">H<sub>j</sub></i> = ' + op('&nbsp;', 'i∈I<sub>j</sub>') + ' <i class="ch">h<sub>i</sub></i>')}`,
+      say: ['G j 等于：对属于 I j 的 i 求和 g i', '把第 j 片叶子里每个样本的 g 加起来（H 同理加 h）', 'Gⱼ = Σ_{i∈Iⱼ} gᵢ，Hⱼ = Σ_{i∈Iⱼ} hᵢ'],
+      code: `${K('G', 'G[j]')} = ${K('sum', 'sum(')}${K('g', 'g[i]')} ${K('sum', 'for i in I[j])')}\n${K('H', 'H[j] = sum(h[i] for i in I[j])')}`,
+      parts: [
+        ['G', 'Gⱼ：第 j 片叶子的 g 之和。', '大写字母常表示“加起来以后”。'],
+        ['sum', 'Σ_{i∈Iⱼ}：只加属于 Iⱼ 的 i。', 'Iⱼ 是落进第 j 片叶子的样本编号集合，∈ 读作“属于”（第 2 章）。'],
+        ['g', 'gᵢ：第 i 个样本的一阶导。', '每个样本自带的那个数。'],
+        ['H', 'Hⱼ：用同样的方法把 h 加起来。', 'Hⱼ 是这片叶子里所有样本的 h 之和。'],
+        ['all', '代入数字。', `第 1 片叶子有 8 个瓜（7 个坏瓜、1 个好瓜）：G₁ = 7 × 0.5 + (−0.5) = ${fmt(GL, 1)}，H₁ = 8 × 0.25 = ${fmt(HL, 1)}。`],
+      ],
+    },
+    {
+      tab: '叶子分数 w*',
+      html: `${P('w', '<i>w<sub>j</sub></i><sup>*</sup>')} = ${P('neg', '−')} ${fr(P('G', '<i class="cg">G<sub>j</sub></i>'), P('Hl', '<i class="ch">H<sub>j</sub></i> + <i>λ</i>'))}`,
+      say: ['w j 星 等于负的 G j 除以 H j 加 λ', '叶子分数 = −(g 的和) ÷ (h 的和 + λ)', 'wⱼ* = −Gⱼ / (Hⱼ + λ)'],
+      code: `${K('w', 'w_best[j]')} = ${K('neg', '-')}${K('G', 'G[j]')} / (${K('Hl', 'H[j] + lam')})`,
+      parts: [
+        ['w', 'wⱼ*：第 j 片叶子最好的分数。', '星号表示“让目标最小的那个”（第 1 章）。'],
+        ['neg', '负号：方向和 G 相反。', 'G > 0 说明这片叶子里的样本整体希望预测往下调，所以分数取负；G < 0 就取正。'],
+        ['G', 'Gⱼ：这片叶子的 g 之和。', '决定往哪边推、推多少。'],
+        ['Hl', 'Hⱼ + λ：分母。', 'H 是这些样本的总分量，λ 是正则。分母越大，分数越靠近 0。'],
+        ['all', '代入数字。', `第 1 片叶子：w₁* = −${fmt(GL, 1)} / (${fmt(HL, 1)} + 1) = ${fmt(-GL / (HL + 1), 3)}。它就是第 7 章抛物线最低点 −b/(2a) 换了个写法。`],
+      ],
+    },
+    {
+      tab: '分裂增益 Gain',
+      html: `${P('gain', 'Gain')} = ${P('half', fr('1', '2'))} [ ${P('left', fr('<i class="cg">G<sub>L</sub></i><sup>2</sup>', '<i class="ch">H<sub>L</sub></i> + <i>λ</i>'))} + ${P('right', fr('<i class="cg">G<sub>R</sub></i><sup>2</sup>', '<i class="ch">H<sub>R</sub></i> + <i>λ</i>'))} − ${P('parent', fr('(<i class="cg">G<sub>L</sub></i> + <i class="cg">G<sub>R</sub></i>)<sup>2</sup>', '<i class="ch">H<sub>L</sub></i> + <i class="ch">H<sub>R</sub></i> + <i>λ</i>'))} ] − ${P('gam', '<i>γ</i>')}`,
+      say: ['Gain 等于二分之一乘括号：G L 平方除以 H L 加 λ，加 G R 平方除以 H R 加 λ，减 G L 加 G R 的平方除以 H L 加 H R 加 λ；括号外再减 γ', '切开后左右两边的得分 − 不切时的得分，再除以 2，减去新叶子的罚金', 'Gain = ½·[G_L²/(H_L+λ) + G_R²/(H_R+λ) − (G_L+G_R)²/(H_L+H_R+λ)] − γ'],
+      code: [
+        'score = lambda G, H: G ** 2 / (H + lam)     <span class="c"># 一片叶子的得分</span>',
+        `${K('gain', 'gain')} = ${K('half', '0.5 *')} (${K('left', 'score(GL, HL)')} + ${K('right', 'score(GR, HR)')} - ${K('parent', 'score(GL + GR, HL + HR)')}) - ${K('gam', 'gamma')}`,
+      ].join('\n'),
+      parts: [
+        ['gain', 'Gain：切这一刀的收益。', '目标函数能下降多少。越大越值得切，不大于 0 就不切。'],
+        ['half', '½：来自抛物线的最低值。', '一片叶子的最低值是 −½·G²/(H + λ)（第 7 章），½ 就是从那里来的。'],
+        ['left', 'G_L²/(H_L + λ)：左边叶子的得分。', 'L 是 left。把切开后左边所有样本的 G、H 代进去。'],
+        ['right', 'G_R²/(H_R + λ)：右边叶子的得分。', 'R 是 right。'],
+        ['parent', '(G_L + G_R)²/(H_L + H_R + λ)：不切时的得分。', '左右合起来就是原来那个节点。'],
+        ['gam', 'γ：新叶子的罚金。', '切一刀多出一片叶子，要付 γ（第 9 章）。'],
+        ['all', '代入数字。', `含糖率 < 0.2045 这一刀：½ × [${fmt(GL, 1)}²/(${fmt(HL, 1)} + 1) + (${fmt(GR, 1)})²/(${fmt(HR, 2)} + 1) − ${fmt(G0, 1)}²/(${fmt(H0, 2)} + 1)] − 0 = ½ × [${fmt(sc(GL, HL), 3)} + ${fmt(sc(GR, HR), 3)} − ${fmt(sc(G0, H0), 3)}] = ${fmt(gain, 3)}。`],
+      ],
+    },
+    {
+      tab: '概率 p',
+      html: `${P('p', '<i>p</i>')} = ${P('sig', 'σ')}(${P('yhat', '<i>ŷ</i>')}) = ${P('frac', fr('1', '1 + e<sup>−<i>ŷ</i></sup>'))}`,
+      say: ['p 等于 σ of ŷ，等于 1 除以 1 加 e 的负 ŷ 次方', '把所有树加起来的分数换算成概率', 'p = σ(ŷ) = 1 / (1 + e^(−ŷ))'],
+      code: `${K('p', 'p')} = ${K('frac', '1 / (1 + math.exp(-')}${K('yhat', 'y_hat')}${K('frac', '))')}`,
+      parts: [
+        ['p', 'p：是好瓜的概率。', '在 0 和 1 之间。'],
+        ['sig', 'σ：sigmoid 函数。', '把任意实数压进 0 到 1（第 5 章）。'],
+        ['yhat', 'ŷ：所有树的分数之和。', '也就是 log-odds，可以是任意实数。'],
+        ['frac', '1 / (1 + e^(−ŷ))：σ 的具体算法。', 'e ≈ 2.718。ŷ = 0 时结果是 0.5。'],
+        ['all', '代入数字。', `1 号瓜第一轮之后 ŷ = ${fmt(m1, 3)}，p = 1 / (1 + e^(−${fmt(m1, 3)})) = ${fmt(sigmoid(m1), 3)}。`],
+      ],
+    },
+  ];
+  let cur = 0;
+  tabs.innerHTML = SPECS.map((s, k) => `<button type="button" data-v="${k}" aria-pressed="${k === 0}">${s.tab}</button>`).join('');
+  function load(k) {
+    cur = k;
+    const s = SPECS[k];
+    fEl.innerHTML = s.html;
+    sayEl.innerHTML = `<span class="lbl">念法</span><span class="v">${s.say[0]}</span><span class="lbl">大白话</span><span class="v">${s.say[1]}</span><span class="lbl">文字版</span><span class="v lin">${s.say[2]}</span>`;
+    codeEl.innerHTML = s.code;
+  }
+  function build() {
+    return SPECS[cur].parts.map(([k, title, textS]) => ({ k, title, text: textS, dur: 500, hold: k === 'all' ? 3800 : 2700 }));
+  }
+  function draw(i, p, s) { markKeys(fEl, s.k); markKeys(codeEl, s.k); }
+  load(0);
+  const tl = new Timeline(fig, build, draw);
+  bindParts(fEl, tl);
+  bindSeg('trans-tabs', v => { load(+v); tl.rebuild('start'); tl.play(); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   boot
+   ===================================================================== */
+function bootBasics() {
+  if (!document.documentElement.lang) document.documentElement.lang = 'zh-CN';
+  readTheme();
+  for (const f of [figOmega, figIndex, figSum, figWalk, figLoss, figSig, figDeriv, figPara, figTaylor2, figReg, figTrans]) {
+    try { f(); } catch (err) { console.error(f.name, err); }
+  }
+  let pending = 0;
+  const rerender = () => {
+    if (pending) return;
+    pending = requestAnimationFrame(() => { pending = 0; readTheme(); ALL.forEach(x => x.render()); });
+  };
+  if (window.matchMedia) {
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', rerender); else if (mq.addListener) mq.addListener(rerender);
+  }
+  new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts) {
+    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', rerender);
+    Promise.all([
+      document.fonts.load('12px "IBM Plex Mono"'), document.fonts.load('600 12px "IBM Plex Mono"'),
+      document.fonts.load('12px "Noto Sans SC"', '好瓜坏瓜含糖率密度叶子是否第棵树轮损失斜率最低点抛物线'),
+      document.fonts.load('italic 15px "STIX Two Text"'),
+    ]).then(rerender, rerender);
+    if (document.fonts.ready) document.fonts.ready.then(rerender);
+  }
+  const links = new Map([...document.querySelectorAll('.toc a')].map(a => [a.getAttribute('href').slice(1), a]));
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => {
+      for (const e of es) if (e.isIntersecting) {
+        links.forEach(a => a.removeAttribute('aria-current'));
+        const a = links.get(e.target.id); if (a) a.setAttribute('aria-current', 'true');
+      }
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    document.querySelectorAll('section.chapter').forEach(sct => io.observe(sct));
+  }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootBasics); else bootBasics();
+})();
+</script>
+</body>
+</html>

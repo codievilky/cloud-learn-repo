@@ -270,7 +270,7 @@ h3 { font-size: 18px; font-weight: 700; margin: 36px 0 6px; line-height: 1.5; }
 .eq sub, .eq sup, .m sub, .m sup { font-size: .68em; line-height: 0; }
 .eq .gap { display: inline-block; width: .6em; }
 .eq .eqp { display: inline-block; white-space: nowrap; margin-right: 1.2em; }
-.eq.wrap { white-space: normal; }
+.eq.multi { white-space: normal; }
 .eqlive { font-family: var(--f-math); font-size: 17px; line-height: 1.7; overflow-x: auto; }
 .eqlive .num { font-family: var(--f-mono); font-size: 14px; font-style: normal; }
 
@@ -469,6 +469,7 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
   <div class="eyebrow">交互图解 · 梯度提升决策树</div>
   <h1><span class="latin">XGBoost</span> 动画图解</h1>
   <p class="lede">XGBoost 的模型是很多棵小决策树的和。训练时它一次只加一棵树，新树专门修正前面所有树加起来还没做好的部分。整个训练就是下面这个循环，每转一圈多一棵树。</p>
+  <p class="small" style="margin:0;max-width:44em">公式看着吃力？先读<a href="basics.html">《XGBoost 预备课》</a>：下标、求和、导数、抛物线的最低点这些基础，每样都配了动画、念法和等价的 Python 代码。</p>
   <div class="hero-meta">
     <span><b>例子 A</b> · 一天 48 个时刻的用电负荷（回归，第 1 章）</span>
     <span><b>例子 B</b> · 西瓜书里的 17 个西瓜（二分类，第 2–9 章）</span>
@@ -493,7 +494,7 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
   <div class="chapter-head"><span class="chapter-no">第 1 章</span><h2>加法模型：一棵树不够，就再加一棵</h2></div>
   <p>先看一个回归任务：用一天里的时刻预测城市的用电负荷。一棵深度为 2 的树最多只有 4 片叶子，只能把 24 小时切成 4 段、每段给一个常数，单独用它肯定拟合不好。</p>
   <p>Boosting 的做法是把很多这样的树串起来：</p>
-  <div class="eq wrap"><span class="eqp"><i>ŷ</i><sup>(0)</sup> = base_score</span><span class="eqp"><i>ŷ</i><sup>(<i>t</i>)</sup> = <i>ŷ</i><sup>(<i>t</i>−1)</sup> + <i>η</i> · <i>f<sub>t</sub></i>(<i>x</i>)</span></div>
+  <div class="eq multi"><span class="eqp"><i>ŷ</i><sup>(0)</sup> = base_score</span><span class="eqp"><i>ŷ</i><sup>(<i>t</i>)</sup> = <i>ŷ</i><sup>(<i>t</i>−1)</sup> + <i>η</i> · <i>f<sub>t</sub></i>(<i>x</i>)</span></div>
   <p>第 <i class="m">t</i> 棵树 <i class="m">f<sub>t</sub></i> 不去拟合原始的 <i class="m">y</i>，而是拟合前面 <i class="m">t</i>−1 棵树留下的残差 <i class="m">y</i> − <i class="m">ŷ</i><sup>(<i>t</i>−1)</sup>。<i class="m">η</i> 是学习率（参数 <span class="mono">eta</span>），它让每棵树只走一小步，剩下的误差留给后面的树继续修。</p>
 
   <figure class="fig" id="fig-boost">
@@ -519,7 +520,7 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
 <section class="chapter prose" id="c2">
   <div class="chapter-head"><span class="chapter-no">第 2 章</span><h2>目标函数：既要准，又要简单</h2></div>
   <p>XGBoost 训练时最小化的目标函数由两部分组成：</p>
-  <div class="eq wrap"><span class="eqp">Obj = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> <i>l</i>(<i>y<sub>i</sub></i>, <i>ŷ<sub>i</sub></i>) + <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">k</span></span> Ω(<i>f<sub>k</sub></i>)</span><span class="note">预测误差 + 所有树的复杂度</span></div>
+  <div class="eq multi"><span class="eqp">Obj = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> <i>l</i>(<i>y<sub>i</sub></i>, <i>ŷ<sub>i</sub></i>) + <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">k</span></span> Ω(<i>f<sub>k</sub></i>)</span><span class="note">预测误差 + 所有树的复杂度</span></div>
   <p>一棵树可以写成 <i class="m">f</i>(<i class="m">x</i>) = <i class="m">w</i><sub><i>q</i>(<i>x</i>)</sub>：<i class="m">q</i>(<i class="m">x</i>) 负责把样本送到某片叶子，<i class="m">w</i> 是每片叶子上的分数。一棵树的复杂度定义成：</p>
   <div class="eq">Ω(<i>f</i>) = <i>γ</i><i>T</i> + <span class="frac"><span>1</span><span>2</span></span><i>λ</i> <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> <i>w<sub>j</sub></i><sup>2</sup></div>
   <p><i class="m">T</i> 是叶子数，每多一片叶子要多付 <i class="m">γ</i>。<i class="m">w<sub>j</sub></i> 是叶子分数，分数越极端罚得越多，力度由 <i class="m">λ</i> 决定。这两个参数后面会反复出现：<i class="m">λ</i> 在叶子权重和分裂增益的分母里，<i class="m">γ</i> 是一次分裂必须越过的门槛。</p>
@@ -542,7 +543,7 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
   <p>第 <i class="m">t</i> 轮时，前 <i class="m">t</i>−1 棵树已经固定，要找的只有新树 <i class="m">f<sub>t</sub></i>：</p>
   <div class="eq">Obj<sup>(<i>t</i>)</sup> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> <i>l</i>(<i>y<sub>i</sub></i>, <i>ŷ<sub>i</sub></i><sup>(<i>t</i>−1)</sup> + <i>f<sub>t</sub></i>(<i>x<sub>i</sub></i>)) + Ω(<i>f<sub>t</sub></i>)</div>
   <p>损失函数 <i class="m">l</i> 可能很复杂，直接对“一棵树”求最优解很难。XGBoost 在当前预测附近，把每个样本的损失近似成一条抛物线：</p>
-  <div class="eq wrap"><span class="eqp"><i>l</i>(<i>y</i>, <i>ŷ</i> + <i>f</i>) ≈ <i>l</i>(<i>y</i>, <i>ŷ</i>) + <i class="cg">g</i>·<i>f</i> + <span class="frac"><span>1</span><span>2</span></span><i class="ch">h</i>·<i>f</i><sup>2</sup></span><span class="eqp"><i class="cg">g</i> = <span class="frac"><span>∂<i>l</i></span><span>∂<i>ŷ</i></span></span>,<span class="gap"></span><i class="ch">h</i> = <span class="frac"><span>∂<sup>2</sup><i>l</i></span><span>∂<i>ŷ</i><sup>2</sup></span></span></span></div>
+  <div class="eq multi"><span class="eqp"><i>l</i>(<i>y</i>, <i>ŷ</i> + <i>f</i>) ≈ <i>l</i>(<i>y</i>, <i>ŷ</i>) + <i class="cg">g</i>·<i>f</i> + <span class="frac"><span>1</span><span>2</span></span><i class="ch">h</i>·<i>f</i><sup>2</sup></span><span class="eqp"><i class="cg">g</i> = <span class="frac"><span>∂<i>l</i></span><span>∂<i>ŷ</i></span></span>,<span class="gap"></span><i class="ch">h</i> = <span class="frac"><span>∂<sup>2</sup><i>l</i></span><span>∂<i>ŷ</i><sup>2</sup></span></span></span></div>
   <p><i class="m cg">g</i> 是斜率，说明往哪边改预测能让损失下降；<i class="m ch">h</i> 是弯曲程度，说明这条抛物线有多陡。只看一个样本的话，抛物线的最低点在 <i class="m">f</i> = −<i class="m cg">g</i>/<i class="m ch">h</i>，这就是牛顿法的一步。加上正则 <i class="m">λ</i> 以后变成 <i class="m">f</i> = −<i class="m cg">g</i>/(<i class="m ch">h</i>+<i class="m">λ</i>)，步子更小、更保守。</p>
 
   <figure class="fig" id="fig-taylor">
@@ -563,7 +564,7 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
   </figure>
 
   <p>二分类常用对数损失。模型输出的 <i class="m">ŷ</i> 是 log-odds，概率 <i class="m">p</i> = σ(<i class="m">ŷ</i>) = 1/(1+e<sup>−<i>ŷ</i></sup>)，求导得到：</p>
-  <div class="eq wrap"><span class="eqp">对数损失：<i class="cg">g</i> = <i>p</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = <i>p</i>(1 − <i>p</i>)</span><span class="eqp">平方损失：<i class="cg">g</i> = <i>ŷ</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = 1</span></div>
+  <div class="eq multi"><span class="eqp">对数损失：<i class="cg">g</i> = <i>p</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = <i>p</i>(1 − <i>p</i>)</span><span class="eqp">平方损失：<i class="cg">g</i> = <i>ŷ</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = 1</span></div>
   <p class="key">从这里开始，建树算法不再需要知道损失函数长什么样。每个样本只要交出 <i class="m cg">g<sub>i</sub></i> 和 <i class="m ch">h<sub>i</sub></i> 两个数，后面的步骤对所有损失函数都一样。这也是 XGBoost 能支持自定义目标函数的原因：自定义目标只需要返回 grad 和 hess。</p>
   <p>和传统 GBDT 比：GBDT 用负梯度（一阶信息）决定树怎么分裂；XGBoost 在分裂和叶子取值时同时用了 <i class="m cg">g</i> 和 <i class="m ch">h</i>，并且把正则项直接写进了公式。</p>
   <p><i class="m ch">h</i> = <i class="m">p</i>(1−<i class="m">p</i>) 在 <i class="m">p</i> = 0.5 时最大（0.25），模型越确定（<i class="m">p</i> 接近 0 或 1）它越小。可以把 <i class="m ch">h</i> 理解成样本的权重：已经学得很有把握的样本，在后面的树里分量更轻。</p>
@@ -573,9 +574,9 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
 <section class="chapter prose" id="c4">
   <div class="chapter-head"><span class="chapter-no">第 4 章</span><h2>叶子上该填什么数：w*</h2></div>
   <p>先假设树的结构已经定了。落在同一片叶子 <i class="m">j</i> 里的样本（集合 <i class="m">I<sub>j</sub></i>）得到同一个输出 <i class="m">w<sub>j</sub></i>。把泰勒展开代进目标函数，去掉和 <i class="m">f<sub>t</sub></i> 无关的常数，再按叶子归并：</p>
-  <div class="eq wrap"><span class="eqp">Obj<sup>(<i>t</i>)</sup> ≈ <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> [ <i class="cg">G<sub>j</sub></i><i>w<sub>j</sub></i> + <span class="frac"><span>1</span><span>2</span></span>(<i class="ch">H<sub>j</sub></i> + <i>λ</i>)<i>w<sub>j</sub></i><sup>2</sup> ] + <i>γT</i></span><span class="eqp"><i class="cg">G<sub>j</sub></i> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i∈I<sub>j</sub></span></span><i class="cg">g<sub>i</sub></i>,<span class="gap"></span><i class="ch">H<sub>j</sub></i> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i∈I<sub>j</sub></span></span><i class="ch">h<sub>i</sub></i></span></div>
+  <div class="eq multi"><span class="eqp">Obj<sup>(<i>t</i>)</sup> ≈ <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> [ <i class="cg">G<sub>j</sub></i><i>w<sub>j</sub></i> + <span class="frac"><span>1</span><span>2</span></span>(<i class="ch">H<sub>j</sub></i> + <i>λ</i>)<i>w<sub>j</sub></i><sup>2</sup> ] + <i>γT</i></span><span class="eqp"><i class="cg">G<sub>j</sub></i> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i∈I<sub>j</sub></span></span><i class="cg">g<sub>i</sub></i>,<span class="gap"></span><i class="ch">H<sub>j</sub></i> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i∈I<sub>j</sub></span></span><i class="ch">h<sub>i</sub></i></span></div>
   <p>每片叶子各自是一条关于 <i class="m">w<sub>j</sub></i> 的抛物线，互不影响，可以分别求最低点：</p>
-  <div class="eq wrap"><span class="eqp"><i>w<sub>j</sub></i><sup>*</sup> = − <span class="frac"><span><i class="cg">G<sub>j</sub></i></span><span><i class="ch">H<sub>j</sub></i> + <i>λ</i></span></span></span><span class="eqp">Obj<sup>*</sup> = − <span class="frac"><span>1</span><span>2</span></span> <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> <span class="frac"><span><i class="cg">G<sub>j</sub></i><sup>2</sup></span><span><i class="ch">H<sub>j</sub></i> + <i>λ</i></span></span> + <i>γT</i></span></div>
+  <div class="eq multi"><span class="eqp"><i>w<sub>j</sub></i><sup>*</sup> = − <span class="frac"><span><i class="cg">G<sub>j</sub></i></span><span><i class="ch">H<sub>j</sub></i> + <i>λ</i></span></span></span><span class="eqp">Obj<sup>*</sup> = − <span class="frac"><span>1</span><span>2</span></span> <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> <span class="frac"><span><i class="cg">G<sub>j</sub></i><sup>2</sup></span><span><i class="ch">H<sub>j</sub></i> + <i>λ</i></span></span> + <i>γT</i></span></div>
   <p>Obj* 叫结构分数（structure score），越小说明这种分法越好。它只依赖每片叶子里 <i class="m cg">g</i>、<i class="m ch">h</i> 的总和。下面用西瓜数据的第一轮来演示：所有瓜的初始预测都是 <i class="m">p</i> = 0.5（log-odds 为 0），所以好瓜 <i class="m cg">g</i> = 0.5 − 1 = −0.5，坏瓜 <i class="m cg">g</i> = +0.5，<i class="m ch">h</i> 都是 0.25。</p>
 
   <figure class="fig" id="fig-leaf">
@@ -779,7 +780,7 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
 <section class="chapter prose" id="c9">
   <div class="chapter-head"><span class="chapter-no">第 9 章</span><h2>预测：一个新瓜走过所有树</h2></div>
   <p>训练完以后，预测一个新样本只需要让它从每棵树的根走到某片叶子，把所有叶子值加起来，再加上起点：</p>
-  <div class="eq wrap"><span class="eqp"><i>ŷ</i> = base_margin + <span class="op"><span class="t">K</span><span class="s">Σ</span><span class="b">k=1</span></span> <i>η</i>·<i>w</i><sup>(<i>k</i>)</sup><sub><i>q<sub>k</sub></i>(<i>x</i>)</sub></span><span class="eqp"><i>p</i> = σ(<i>ŷ</i>) = <span class="frac"><span>1</span><span>1 + e<sup>−<i>ŷ</i></sup></span></span></span></div>
+  <div class="eq multi"><span class="eqp"><i>ŷ</i> = base_margin + <span class="op"><span class="t">K</span><span class="s">Σ</span><span class="b">k=1</span></span> <i>η</i>·<i>w</i><sup>(<i>k</i>)</sup><sub><i>q<sub>k</sub></i>(<i>x</i>)</sub></span><span class="eqp"><i>p</i> = σ(<i>ŷ</i>) = <span class="frac"><span>1</span><span>1 + e<sup>−<i>ŷ</i></sup></span></span></span></div>
   <p>base_score = 0.5 对应的 log-odds 是 0。二分类最后过一次 sigmoid，把 log-odds 变成概率。在左边的图里拖动那个“?”，换一个瓜试试。</p>
 
   <figure class="fig" id="fig-predict">
@@ -995,6 +996,7 @@ class Timeline {
       const b = e.target.closest('button[data-a]');
       if (!b) return;
       this.started = true;
+      if (this.onControl) this.onControl();
       const a = b.dataset.a;
       if (a === 'play') (this.playing && this.stopAt === null ? this.pause() : this.play());
       else if (a === 'next') this.next();
@@ -1003,6 +1005,7 @@ class Timeline {
     });
     this.scrub.addEventListener('input', () => {
       this.started = true; this.pause();
+      if (this.onControl) this.onControl();
       this.t = (+this.scrub.value / 1000) * this.total;
       this.render();
     });
@@ -1093,6 +1096,7 @@ class Timeline {
     this.render();
   }
   autoplay() { if (!this.started && !RM) { this.started = true; this.play(); } }
+  jump(i) { this.started = true; this.pause(); i = clamp(i, 0, this.segs.length - 1); this.t = this.starts[i] + this.segs[i].dur; this.render(); }
 }
 
 /* ---------- form helpers ---------- */
