@@ -1,0 +1,2963 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>XGBoost 动画图解</title>
+<meta name="description" content="用可以逐步播放的动画拆解 XGBoost：加法模型、二阶泰勒展开、叶子权重、分裂增益、剪枝、直方图、缺失值和预测。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@600;900&family=STIX+Two+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap">
+<style>
+:root {
+  --paper: #eff2ee;
+  --plate: #fbfcfa;
+  --plate-2: #f3f6f2;
+  --ink: #15222a;
+  --ink-2: #34434b;
+  --muted: #5f6f76;
+  --faint: #9aa8ad;
+  --rule: #d0d8d4;
+  --grid: #e3e9e5;
+  --g: #cc4718;
+  --h: #2b5dcc;
+  --pos: #0a8163;
+  --neg: #8a44b2;
+  --mark: #f5d466;
+  --btn: #15222a;
+  --btn-ink: #f4f6f2;
+  --shadow: 0 1px 0 rgba(21, 34, 42, .04), 0 10px 28px -18px rgba(21, 34, 42, .28);
+  --f-sans: "Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --f-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --f-math: "STIX Two Text", "Times New Roman", "Noto Serif SC", serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: #0e1417;
+    --plate: #141c20;
+    --plate-2: #192226;
+    --ink: #e2eaeb;
+    --ink-2: #c0ccce;
+    --muted: #8fa0a5;
+    --faint: #5b6b70;
+    --rule: #28353a;
+    --grid: #1d282c;
+    --g: #ff7d4f;
+    --h: #80a4ff;
+    --pos: #3dcca2;
+    --neg: #c89bf0;
+    --mark: #6e5a1d;
+    --btn: #e2eaeb;
+    --btn-ink: #0e1417;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0e1417;
+  --plate: #141c20;
+  --plate-2: #192226;
+  --ink: #e2eaeb;
+  --ink-2: #c0ccce;
+  --muted: #8fa0a5;
+  --faint: #5b6b70;
+  --rule: #28353a;
+  --grid: #1d282c;
+  --g: #ff7d4f;
+  --h: #80a4ff;
+  --pos: #3dcca2;
+  --neg: #c89bf0;
+  --mark: #6e5a1d;
+  --btn: #e2eaeb;
+  --btn-ink: #0e1417;
+  --shadow: none;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--f-sans);
+  font-size: 17px;
+  line-height: 1.8;
+  padding-inline: 16px;
+  font-feature-settings: "palt" 0;
+}
+a { color: inherit; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--h); outline-offset: 2px; border-radius: 3px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.cg { color: var(--g); }
+.ch { color: var(--h); }
+.cp { color: var(--pos); }
+.cn { color: var(--neg); }
+mark { background: var(--mark); color: inherit; padding: 0 .15em; border-radius: 2px; }
+
+/* ---------- page grid ---------- */
+.wrap {
+  max-width: 1180px;
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  column-gap: 56px;
+  padding-block: 44px 110px;
+}
+.toc {
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + 28px);
+  align-self: start;
+  font-size: 14px;
+  line-height: 1.5;
+  padding-top: 6px;
+}
+.toc-label { font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; color: var(--muted); margin-bottom: 12px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc a {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--muted);
+}
+.toc a .n { font-family: var(--f-mono); font-size: 12px; padding-top: 1px; }
+.toc a:hover { color: var(--ink); background: var(--plate-2); }
+.toc a[aria-current="true"] { color: var(--ink); background: var(--plate); box-shadow: inset 0 0 0 1px var(--rule); }
+main { min-width: 0; }
+@media (max-width: 1040px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 28px 80px; }
+  .toc { display: none; }
+}
+
+/* ---------- hero ---------- */
+.hero { display: grid; gap: 18px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+h1 {
+  font-family: var(--f-serif);
+  font-weight: 900;
+  font-size: clamp(36px, 6vw, 60px);
+  line-height: 1.12;
+  letter-spacing: .01em;
+  margin: 0;
+  text-wrap: balance;
+}
+h1 .latin { font-family: var(--f-math); font-weight: 600; letter-spacing: 0; }
+.lede { font-size: 19px; line-height: 1.75; color: var(--ink-2); max-width: 36em; margin: 0; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 14px; color: var(--muted); }
+.hero-meta span b { color: var(--ink); font-weight: 500; }
+
+/* training loop map */
+.loop { margin-top: 18px; position: relative; }
+.loop-title { font-size: 14px; color: var(--muted); margin-bottom: 10px; }
+.loop-grid {
+  list-style: none; margin: 0; padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 26px;
+  position: relative;
+}
+.loop-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 12px 12px 14px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  text-decoration: none;
+  color: inherit;
+  min-height: 132px;
+  transition: border-color .25s, transform .25s;
+}
+.loop-card:hover { border-color: var(--ink-2); }
+.loop-card .k { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; color: var(--muted); }
+.loop-card .t { font-weight: 700; font-size: 15px; line-height: 1.4; }
+.loop-card .f { font-family: var(--f-math); font-size: 16px; line-height: 1.45; color: var(--ink-2); }
+.loop-card .c { font-size: 12px; color: var(--muted); margin-top: auto; }
+.loop-grid > li { display: grid; position: relative; }
+.loop-grid > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -20px; top: 56px;
+  width: 14px; height: 14px;
+  border-top: 2px solid var(--faint);
+  border-right: 2px solid var(--faint);
+  transform: rotate(45deg);
+}
+.loop-back {
+  grid-column: 2 / 6;
+  height: 26px;
+  /* from the centre of card ② (step ①) to the centre of card ⑤: 5 columns, 4 gaps of 26px */
+  margin: 8px calc((100% - 104px) * 0.1) 0 calc((100% - 104px) * 0.3 + 26px);
+  border: 2px solid var(--faint);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  position: relative;
+}
+.loop-back::before {
+  content: "";
+  position: absolute; left: -8px; top: -4px;
+  border: 7px solid transparent;
+  border-bottom: 10px solid var(--faint);
+  border-top: 0;
+}
+.loop-back span {
+  position: absolute; left: 50%; bottom: -12px; transform: translateX(-50%);
+  background: var(--paper); padding: 0 10px; font-size: 13px; color: var(--muted); white-space: nowrap;
+}
+.loop-grid li.on .loop-card { border-color: var(--ink); transform: translateY(-2px); }
+@media (max-width: 760px) {
+  .loop-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .loop-card { min-height: 0; grid-template-columns: auto 1fr; column-gap: 12px; }
+  .loop-card .k { grid-row: 1 / 4; padding-top: 3px; }
+  .loop-grid > li:not(:last-child)::after { right: auto; left: 50%; top: auto; bottom: -12px; width: 10px; height: 10px; transform: translateX(-50%) rotate(135deg); }
+  .loop-back { height: auto; margin: 12px 0 0; border: 0; border-radius: 0; text-align: center; }
+  .loop-back::before { display: none; }
+  .loop-back span { position: static; transform: none; padding: 0; background: none; }
+  .loop-back span::before { content: "↺ 回到第 ① 步，开始"; }
+}
+
+/* ---------- chapters ---------- */
+.chapter { border-top: 1px solid var(--rule); margin-top: 72px; padding-top: 56px; scroll-margin-top: 12px; }
+.chapter-head { display: grid; gap: 6px; margin-bottom: 18px; }
+.chapter-no { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; color: var(--muted); }
+h2 {
+  font-family: var(--f-serif);
+  font-weight: 900;
+  font-size: clamp(25px, 3.4vw, 34px);
+  line-height: 1.3;
+  margin: 0;
+  text-wrap: balance;
+}
+h3 { font-size: 18px; font-weight: 700; margin: 36px 0 6px; line-height: 1.5; }
+.prose p, .prose ul, .prose ol { max-width: 40em; }
+.prose p { margin: 0 0 14px; }
+.prose ul, .prose ol { padding-left: 1.3em; margin: 0 0 14px; }
+.prose li { margin: 3px 0; }
+.prose li::marker { color: var(--faint); }
+.small { font-size: 14px; color: var(--muted); }
+
+/* ---------- math ---------- */
+.eq {
+  font-family: var(--f-math);
+  font-size: 21px;
+  line-height: 1.6;
+  margin: 14px 0 18px;
+  padding: 10px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  max-width: 40em;
+}
+.eq .note { font-family: var(--f-sans); font-size: 14px; color: var(--muted); margin-left: 18px; white-space: nowrap; }
+.m { font-family: var(--f-math); font-size: 1.1em; white-space: nowrap; }
+.m i, .eq i { font-style: italic; }
+.frac {
+  display: inline-flex; flex-direction: column; vertical-align: middle;
+  text-align: center; margin: 0 .12em; line-height: 1.25;
+}
+.frac > span:first-child { border-bottom: 1px solid currentColor; padding: 0 .25em .06em; }
+.frac > span:last-child { padding: .08em .25em 0; }
+.op { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1; margin: 0 .1em; }
+.op .s { font-size: 1.45em; line-height: 1; }
+.op .b, .op .t { font-size: .6em; font-style: italic; }
+.eq sub, .eq sup, .m sub, .m sup { font-size: .68em; line-height: 0; }
+.eq .gap { display: inline-block; width: .6em; }
+.eq .eqp { display: inline-block; white-space: nowrap; margin-right: 1.2em; }
+.eq.wrap { white-space: normal; }
+.eqlive { font-family: var(--f-math); font-size: 17px; line-height: 1.7; overflow-x: auto; }
+.eqlive .num { font-family: var(--f-mono); font-size: 14px; font-style: normal; }
+
+/* ---------- figure plates ---------- */
+.fig {
+  margin: 28px 0 34px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.fig-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+  padding: 13px 18px 11px;
+  border-bottom: 1px solid var(--rule);
+}
+.fig-no { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; color: var(--muted); }
+.fig-title { font-weight: 700; font-size: 15px; line-height: 1.5; }
+.fig-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-left: auto; font-size: 13px; color: var(--muted); }
+.fig-legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.sw.sq { border-radius: 2px; }
+.sw.ln { width: 16px; height: 2px; border-radius: 0; }
+.stage { position: relative; }
+.stage canvas { display: block; width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.stage canvas.drag { cursor: ew-resize; }
+.stage canvas.grab { cursor: grab; }
+.caption {
+  padding: 12px 18px 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 15px;
+  line-height: 1.75;
+  min-height: 5.6em;
+}
+.caption .st { font-family: var(--f-mono); font-size: 12px; color: var(--muted); margin-right: 10px; letter-spacing: .04em; }
+.caption .tt { font-weight: 700; margin-right: 6px; }
+.controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 4px 18px 14px;
+}
+.tl-buttons { display: flex; gap: 6px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; min-width: 34px; padding: 0 10px;
+  font: 500 14px/1 var(--f-sans);
+  color: var(--ink);
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--ink-2); }
+.btn svg { width: 16px; height: 16px; display: block; }
+.btn.primary { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); min-width: 84px; }
+.btn.primary:hover { opacity: .9; }
+.tl-count { font-size: 12px; color: var(--muted); white-space: nowrap; min-width: 4.5em; text-align: right; }
+input[type="range"] { accent-color: var(--ink); width: 100%; margin: 0; min-width: 0; }
+.scrub { height: 20px; }
+.params {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 26px;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--rule);
+  background: var(--plate-2);
+  font-size: 14px;
+}
+.param { display: grid; grid-template-columns: auto 132px auto; align-items: center; gap: 10px; }
+.param label { color: var(--ink-2); white-space: nowrap; }
+.param output { font-family: var(--f-mono); font-size: 13px; min-width: 3.2em; font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 5px; overflow: hidden; }
+.seg button {
+  font: 500 13px/1 var(--f-sans); color: var(--ink-2);
+  background: var(--plate); border: 0; padding: 8px 11px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--btn); color: var(--btn-ink); }
+.seg-wrap { display: inline-flex; align-items: center; gap: 10px; color: var(--ink-2); }
+.param-note { font-size: 13px; color: var(--muted); flex-basis: 100%; }
+.live {
+  padding: 12px 18px;
+  border-top: 1px solid var(--rule);
+  background: var(--plate-2);
+}
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 22px; font-size: 14px; }
+.readout div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed var(--rule); padding: 3px 0; }
+.readout dt, .readout .k { color: var(--muted); }
+.readout .v { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  .controls { grid-template-columns: 1fr auto; }
+  .controls .scrub { grid-column: 1 / -1; grid-row: 2; }
+  .param { grid-template-columns: auto minmax(90px, 1fr) auto; width: 100%; }
+  .fig-legend { margin-left: 0; }
+  .eq { font-size: 17px; }
+}
+
+/* stage chips for the training loop figure */
+.phases { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px 0; }
+.phase {
+  font-size: 13px; padding: 4px 10px; border-radius: 99px;
+  border: 1px solid var(--rule); color: var(--muted); background: var(--plate);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.phase.on { background: var(--btn); color: var(--btn-ink); border-color: var(--btn); }
+
+/* split layout inside a plate: canvas + table */
+.split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+.split > .tablebox { border-left: 1px solid var(--rule); }
+@media (max-width: 900px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .split > .tablebox { border-left: 0; border-top: 1px solid var(--rule); }
+}
+.tablebox { overflow-x: auto; padding: 8px 12px 10px; }
+table.samples { border-collapse: collapse; width: 100%; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+table.samples th {
+  font-weight: 500; color: var(--muted); text-align: right; padding: 4px 6px;
+  border-bottom: 1px solid var(--rule); white-space: nowrap; font-size: 12px;
+}
+table.samples th:first-child, table.samples td:first-child { text-align: left; }
+table.samples td { font-family: var(--f-mono); text-align: right; padding: 2px 6px; white-space: nowrap; border-bottom: 1px solid var(--grid); }
+table.samples td.bar { position: relative; min-width: 64px; }
+table.samples td.bar i { position: absolute; top: 5px; bottom: 5px; opacity: .22; border-radius: 2px; }
+table.samples td.bar span { position: relative; }
+table.samples tr.flash td { background: var(--plate-2); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; vertical-align: 0; }
+.dot.sq { border-radius: 2px; }
+
+/* notes */
+.aside {
+  max-width: 40em;
+  margin: 18px 0 20px;
+  padding: 14px 18px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.aside .label { display: block; font-family: var(--f-mono); font-size: 11px; letter-spacing: .14em; color: var(--muted); margin-bottom: 4px; }
+.aside p { margin: 0 0 8px; }
+.aside p:last-child { margin: 0; }
+.key { font-size: 18px; line-height: 1.75; max-width: 38em; margin: 22px 0; font-weight: 500; }
+pre.code {
+  font-family: var(--f-mono); font-size: 13px; line-height: 1.65;
+  background: var(--plate); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 14px 16px; overflow-x: auto; margin: 14px 0 18px; max-width: 100%;
+  color: var(--ink-2);
+}
+pre.code .c { color: var(--muted); }
+
+/* parameter table */
+.ptable-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--rule); border-radius: 6px; background: var(--plate); }
+table.ptable { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.6; min-width: 640px; }
+table.ptable th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; letter-spacing: .06em; padding: 10px 14px; border-bottom: 1px solid var(--rule); background: var(--plate-2); }
+table.ptable td { padding: 9px 14px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+table.ptable tr:last-child td { border-bottom: 0; }
+table.ptable td:first-child { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; }
+table.ptable td.d { font-family: var(--f-mono); font-size: 13px; white-space: nowrap; color: var(--ink-2); }
+table.ptable .where { display: inline-block; font-size: 12px; color: var(--muted); border: 1px solid var(--rule); border-radius: 99px; padding: 0 8px; margin-right: 6px; white-space: nowrap; }
+
+/* system diagram */
+.sys { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin: 18px 0 22px; }
+.sys-card { background: var(--plate); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px; font-size: 14.5px; line-height: 1.7; }
+.sys-card h4 { margin: 0 0 6px; font-size: 15px; }
+.sys-card svg { width: 100%; height: auto; display: block; margin: 4px 0 10px; }
+.sys-card p { margin: 0; color: var(--ink-2); }
+
+.summary { margin-top: 26px; display: grid; gap: 10px; counter-reset: s; max-width: 42em; padding: 0; list-style: none; }
+.summary li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: baseline; }
+.summary li::before { counter-increment: s; content: counter(s); font-family: var(--f-mono); font-size: 13px; color: var(--muted); border: 1px solid var(--rule); border-radius: 99px; width: 26px; height: 26px; display: grid; place-items: center; background: var(--plate); }
+footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--muted); max-width: 44em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="章节">
+  <div class="toc-label">目录</div>
+  <ol>
+    <li><a href="#c1"><span class="n">01</span><span>加法模型</span></a></li>
+    <li><a href="#c2"><span class="n">02</span><span>目标函数</span></a></li>
+    <li><a href="#c3"><span class="n">03</span><span>泰勒展开：g 与 h</span></a></li>
+    <li><a href="#c4"><span class="n">04</span><span>叶子权重 w*</span></a></li>
+    <li><a href="#c5"><span class="n">05</span><span>找最佳分裂</span></a></li>
+    <li><a href="#c6"><span class="n">06</span><span>长成一棵树</span></a></li>
+    <li><a href="#c7"><span class="n">07</span><span>训练循环</span></a></li>
+    <li><a href="#c8"><span class="n">08</span><span>工程加速</span></a></li>
+    <li><a href="#c9"><span class="n">09</span><span>预测</span></a></li>
+    <li><a href="#c10"><span class="n">10</span><span>参数速查</span></a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">交互图解 · 梯度提升决策树</div>
+  <h1><span class="latin">XGBoost</span> 动画图解</h1>
+  <p class="lede">XGBoost 的模型是很多棵小决策树的和。训练时它一次只加一棵树，新树专门修正前面所有树加起来还没做好的部分。整个训练就是下面这个循环，每转一圈多一棵树。</p>
+  <div class="hero-meta">
+    <span><b>例子 A</b> · 一天 48 个时刻的用电负荷（回归，第 1 章）</span>
+    <span><b>例子 B</b> · 西瓜书里的 17 个西瓜（二分类，第 2–9 章）</span>
+  </div>
+
+  <div class="loop" aria-label="XGBoost 的训练循环">
+    <div class="loop-title">训练循环（点击跳到对应章节）</div>
+    <ol class="loop-grid" id="loop-grid">
+      <li><a class="loop-card" href="#c1"><span class="k">起点</span><span class="t">初始预测</span><span class="f"><i>ŷ</i><sup>(0)</sup> = base_score</span><span class="c">第 1 章</span></a></li>
+      <li><a class="loop-card" href="#c3"><span class="k">第 ① 步</span><span class="t">给每个样本算 <i class="m cg">g</i>、<i class="m ch">h</i></span><span class="f"><i class="cg">g<sub>i</sub></i> = ∂<i>l</i>/∂<i>ŷ</i><br><i class="ch">h<sub>i</sub></i> = ∂²<i>l</i>/∂<i>ŷ</i>²</span><span class="c">第 3 章</span></a></li>
+      <li><a class="loop-card" href="#c5"><span class="k">第 ② 步</span><span class="t">贪心分裂，长一棵树</span><span class="f">选 Gain 最大的切分</span><span class="c">第 5–6 章</span></a></li>
+      <li><a class="loop-card" href="#c4"><span class="k">第 ③ 步</span><span class="t">给叶子填分数</span><span class="f"><i>w</i>* = −<i class="cg">G</i>/(<i class="ch">H</i>+<i>λ</i>)</span><span class="c">第 4 章</span></a></li>
+      <li><a class="loop-card" href="#c7"><span class="k">第 ④ 步</span><span class="t">更新预测</span><span class="f"><i>ŷ</i> ← <i>ŷ</i> + <i>η</i>·<i>f<sub>t</sub></i>(<i>x</i>)</span><span class="c">第 7 章</span></a></li>
+    </ol>
+    <div class="loop-back" aria-hidden="true"><span>下一棵树</span></div>
+  </div>
+  <p class="small" style="margin:18px 0 0;max-width:44em">每张图都可以播放、暂停、单步前进后退，也可以拖动参数。图里的所有数字都由页面里的一个小型 XGBoost 实时算出。在西瓜数据上，它和真正的 xgboost 3.2（<span class="mono">tree_method="exact"</span>）逐棵树对照过，分裂点、增益、叶子值完全一致。</p>
+</header>
+
+<!-- ============ 1 ============ -->
+<section class="chapter prose" id="c1">
+  <div class="chapter-head"><span class="chapter-no">第 1 章</span><h2>加法模型：一棵树不够，就再加一棵</h2></div>
+  <p>先看一个回归任务：用一天里的时刻预测城市的用电负荷。一棵深度为 2 的树最多只有 4 片叶子，只能把 24 小时切成 4 段、每段给一个常数，单独用它肯定拟合不好。</p>
+  <p>Boosting 的做法是把很多这样的树串起来：</p>
+  <div class="eq wrap"><span class="eqp"><i>ŷ</i><sup>(0)</sup> = base_score</span><span class="eqp"><i>ŷ</i><sup>(<i>t</i>)</sup> = <i>ŷ</i><sup>(<i>t</i>−1)</sup> + <i>η</i> · <i>f<sub>t</sub></i>(<i>x</i>)</span></div>
+  <p>第 <i class="m">t</i> 棵树 <i class="m">f<sub>t</sub></i> 不去拟合原始的 <i class="m">y</i>，而是拟合前面 <i class="m">t</i>−1 棵树留下的残差 <i class="m">y</i> − <i class="m">ŷ</i><sup>(<i>t</i>−1)</sup>。<i class="m">η</i> 是学习率（参数 <span class="mono">eta</span>），它让每棵树只走一小步，剩下的误差留给后面的树继续修。</p>
+
+  <figure class="fig" id="fig-boost">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 1</span><span class="fig-title">每棵新树拟合上一轮的残差</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--ink)"></i>实际负荷</span><span><i class="sw ln" style="background:var(--pos)"></i>当前预测</span><span><i class="sw ln" style="background:var(--g)"></i>残差</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="用电负荷的散点、逐轮变化的预测曲线，以及每一轮新树拟合残差的阶梯函数"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="boost-eta">学习率 η</label><input type="range" id="boost-eta" min="0.05" max="1" step="0.05" value="0.3"><output for="boost-eta">0.30</output></div>
+      <div class="seg-wrap"><span>树深 max_depth</span><div class="seg" id="boost-depth" role="group" aria-label="树深"><button type="button" data-v="1">1</button><button type="button" data-v="2" aria-pressed="true">2</button><button type="button" data-v="3">3</button><button type="button" data-v="4">4</button></div></div>
+      <span class="param-note">其余参数固定：λ = 1，γ = 0，min_child_weight = 1，一共 40 棵树。拖动参数时直接显示 40 棵树之后的结果，点“播放”可以从头看。</span>
+    </div>
+  </figure>
+
+  <p>留意两件事。每棵树的输出（下半部分的阶梯线）越来越矮，因为残差在变小。<i class="m">η</i> 越小，需要的树越多，曲线也更平滑，不容易过拟合。</p>
+  <p>对平方损失 <i class="m">l</i> = ½(<i class="m">y</i> − <i class="m">ŷ</i>)²，残差正好是负梯度：<i class="m cg">g</i> = ∂<i class="m">l</i>/∂<i class="m">ŷ</i> = <i class="m">ŷ</i> − <i class="m">y</i>。所以“拟合残差”其实就是“沿负梯度走一步”。换成别的损失函数（比如分类用的对数损失），“残差”这个说法就不够用了。XGBoost 用的是更一般的一阶导 <i class="m cg">g</i> 和二阶导 <i class="m ch">h</i>，这是第 3 章的内容。</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="chapter prose" id="c2">
+  <div class="chapter-head"><span class="chapter-no">第 2 章</span><h2>目标函数：既要准，又要简单</h2></div>
+  <p>XGBoost 训练时最小化的目标函数由两部分组成：</p>
+  <div class="eq wrap"><span class="eqp">Obj = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> <i>l</i>(<i>y<sub>i</sub></i>, <i>ŷ<sub>i</sub></i>) + <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">k</span></span> Ω(<i>f<sub>k</sub></i>)</span><span class="note">预测误差 + 所有树的复杂度</span></div>
+  <p>一棵树可以写成 <i class="m">f</i>(<i class="m">x</i>) = <i class="m">w</i><sub><i>q</i>(<i>x</i>)</sub>：<i class="m">q</i>(<i class="m">x</i>) 负责把样本送到某片叶子，<i class="m">w</i> 是每片叶子上的分数。一棵树的复杂度定义成：</p>
+  <div class="eq">Ω(<i>f</i>) = <i>γ</i><i>T</i> + <span class="frac"><span>1</span><span>2</span></span><i>λ</i> <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> <i>w<sub>j</sub></i><sup>2</sup></div>
+  <p><i class="m">T</i> 是叶子数，每多一片叶子要多付 <i class="m">γ</i>。<i class="m">w<sub>j</sub></i> 是叶子分数，分数越极端罚得越多，力度由 <i class="m">λ</i> 决定。这两个参数后面会反复出现：<i class="m">λ</i> 在叶子权重和分裂增益的分母里，<i class="m">γ</i> 是一次分裂必须越过的门槛。</p>
+
+  <figure class="fig" id="fig-objtree">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 2</span><span class="fig-title">一棵树 = 结构 q + 叶子分数 w（西瓜数据的第 1 棵树）</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>好瓜</span><span><i class="sw sq" style="background:var(--neg)"></i>坏瓜</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="一棵三片叶子的决策树，以及样本被送到叶子的过程"></canvas></div>
+    <div class="live"><div class="eqlive" id="objtree-eq"></div></div>
+  </figure>
+
+  <p>没有这一项会怎样？树会一直长到每片叶子只剩一个样本，叶子分数也会变得很极端，训练误差趋近 0，但在新数据上表现很差。正则项让“多分一次”和“分数更大”都有代价，只有带来的误差下降足够多时才值得。</p>
+</section>
+
+<!-- ============ 3 ============ -->
+<section class="chapter prose" id="c3">
+  <div class="chapter-head"><span class="chapter-no">第 3 章</span><h2>二阶泰勒展开：g 和 h 从哪来</h2></div>
+  <p>第 <i class="m">t</i> 轮时，前 <i class="m">t</i>−1 棵树已经固定，要找的只有新树 <i class="m">f<sub>t</sub></i>：</p>
+  <div class="eq">Obj<sup>(<i>t</i>)</sup> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> <i>l</i>(<i>y<sub>i</sub></i>, <i>ŷ<sub>i</sub></i><sup>(<i>t</i>−1)</sup> + <i>f<sub>t</sub></i>(<i>x<sub>i</sub></i>)) + Ω(<i>f<sub>t</sub></i>)</div>
+  <p>损失函数 <i class="m">l</i> 可能很复杂，直接对“一棵树”求最优解很难。XGBoost 在当前预测附近，把每个样本的损失近似成一条抛物线：</p>
+  <div class="eq wrap"><span class="eqp"><i>l</i>(<i>y</i>, <i>ŷ</i> + <i>f</i>) ≈ <i>l</i>(<i>y</i>, <i>ŷ</i>) + <i class="cg">g</i>·<i>f</i> + <span class="frac"><span>1</span><span>2</span></span><i class="ch">h</i>·<i>f</i><sup>2</sup></span><span class="eqp"><i class="cg">g</i> = <span class="frac"><span>∂<i>l</i></span><span>∂<i>ŷ</i></span></span>,<span class="gap"></span><i class="ch">h</i> = <span class="frac"><span>∂<sup>2</sup><i>l</i></span><span>∂<i>ŷ</i><sup>2</sup></span></span></span></div>
+  <p><i class="m cg">g</i> 是斜率，说明往哪边改预测能让损失下降；<i class="m ch">h</i> 是弯曲程度，说明这条抛物线有多陡。只看一个样本的话，抛物线的最低点在 <i class="m">f</i> = −<i class="m cg">g</i>/<i class="m ch">h</i>，这就是牛顿法的一步。加上正则 <i class="m">λ</i> 以后变成 <i class="m">f</i> = −<i class="m cg">g</i>/(<i class="m ch">h</i>+<i class="m">λ</i>)，步子更小、更保守。</p>
+
+  <figure class="fig" id="fig-taylor">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 3</span><span class="fig-title">用抛物线近似一个样本的损失（可拖动图中的点）</span>
+      <span class="fig-legend"><span><i class="sw ln" style="background:var(--ink)"></i>真实损失</span><span><i class="sw ln" style="background:var(--g)"></i>切线（g）</span><span><i class="sw ln" style="background:var(--h)"></i>二阶近似（h）</span></span>
+    </figcaption>
+    <div class="stage"><canvas class="drag" role="img" aria-label="损失函数曲线、当前预测点、切线与二阶抛物线近似，以及牛顿步"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="seg-wrap"><span>损失</span><div class="seg" id="taylor-loss" role="group" aria-label="损失函数"><button type="button" data-v="log" aria-pressed="true">对数损失（分类）</button><button type="button" data-v="sq">平方损失（回归）</button></div></div>
+      <div class="seg-wrap"><span>标签 y</span><div class="seg" id="taylor-y" role="group" aria-label="标签"><button type="button" data-v="1" aria-pressed="true">1</button><button type="button" data-v="0">0</button></div></div>
+      <div class="param"><label for="taylor-lam">λ</label><input type="range" id="taylor-lam" min="0" max="4" step="0.1" value="1"><output for="taylor-lam">1.0</output></div>
+      <div class="param"><label for="taylor-m">当前预测 ŷ</label><input type="range" id="taylor-m" min="-3.5" max="3.5" step="0.05" value="-1"><output for="taylor-m">−1.00</output></div>
+    </div>
+    <div class="live"><dl class="readout" id="taylor-read"></dl></div>
+  </figure>
+
+  <p>二分类常用对数损失。模型输出的 <i class="m">ŷ</i> 是 log-odds，概率 <i class="m">p</i> = σ(<i class="m">ŷ</i>) = 1/(1+e<sup>−<i>ŷ</i></sup>)，求导得到：</p>
+  <div class="eq wrap"><span class="eqp">对数损失：<i class="cg">g</i> = <i>p</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = <i>p</i>(1 − <i>p</i>)</span><span class="eqp">平方损失：<i class="cg">g</i> = <i>ŷ</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = 1</span></div>
+  <p class="key">从这里开始，建树算法不再需要知道损失函数长什么样。每个样本只要交出 <i class="m cg">g<sub>i</sub></i> 和 <i class="m ch">h<sub>i</sub></i> 两个数，后面的步骤对所有损失函数都一样。这也是 XGBoost 能支持自定义目标函数的原因：自定义目标只需要返回 grad 和 hess。</p>
+  <p>和传统 GBDT 比：GBDT 用负梯度（一阶信息）决定树怎么分裂；XGBoost 在分裂和叶子取值时同时用了 <i class="m cg">g</i> 和 <i class="m ch">h</i>，并且把正则项直接写进了公式。</p>
+  <p><i class="m ch">h</i> = <i class="m">p</i>(1−<i class="m">p</i>) 在 <i class="m">p</i> = 0.5 时最大（0.25），模型越确定（<i class="m">p</i> 接近 0 或 1）它越小。可以把 <i class="m ch">h</i> 理解成样本的权重：已经学得很有把握的样本，在后面的树里分量更轻。</p>
+</section>
+
+<!-- ============ 4 ============ -->
+<section class="chapter prose" id="c4">
+  <div class="chapter-head"><span class="chapter-no">第 4 章</span><h2>叶子上该填什么数：w*</h2></div>
+  <p>先假设树的结构已经定了。落在同一片叶子 <i class="m">j</i> 里的样本（集合 <i class="m">I<sub>j</sub></i>）得到同一个输出 <i class="m">w<sub>j</sub></i>。把泰勒展开代进目标函数，去掉和 <i class="m">f<sub>t</sub></i> 无关的常数，再按叶子归并：</p>
+  <div class="eq wrap"><span class="eqp">Obj<sup>(<i>t</i>)</sup> ≈ <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> [ <i class="cg">G<sub>j</sub></i><i>w<sub>j</sub></i> + <span class="frac"><span>1</span><span>2</span></span>(<i class="ch">H<sub>j</sub></i> + <i>λ</i>)<i>w<sub>j</sub></i><sup>2</sup> ] + <i>γT</i></span><span class="eqp"><i class="cg">G<sub>j</sub></i> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i∈I<sub>j</sub></span></span><i class="cg">g<sub>i</sub></i>,<span class="gap"></span><i class="ch">H<sub>j</sub></i> = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i∈I<sub>j</sub></span></span><i class="ch">h<sub>i</sub></i></span></div>
+  <p>每片叶子各自是一条关于 <i class="m">w<sub>j</sub></i> 的抛物线，互不影响，可以分别求最低点：</p>
+  <div class="eq wrap"><span class="eqp"><i>w<sub>j</sub></i><sup>*</sup> = − <span class="frac"><span><i class="cg">G<sub>j</sub></i></span><span><i class="ch">H<sub>j</sub></i> + <i>λ</i></span></span></span><span class="eqp">Obj<sup>*</sup> = − <span class="frac"><span>1</span><span>2</span></span> <span class="op"><span class="t">T</span><span class="s">Σ</span><span class="b">j=1</span></span> <span class="frac"><span><i class="cg">G<sub>j</sub></i><sup>2</sup></span><span><i class="ch">H<sub>j</sub></i> + <i>λ</i></span></span> + <i>γT</i></span></div>
+  <p>Obj* 叫结构分数（structure score），越小说明这种分法越好。它只依赖每片叶子里 <i class="m cg">g</i>、<i class="m ch">h</i> 的总和。下面用西瓜数据的第一轮来演示：所有瓜的初始预测都是 <i class="m">p</i> = 0.5（log-odds 为 0），所以好瓜 <i class="m cg">g</i> = 0.5 − 1 = −0.5，坏瓜 <i class="m cg">g</i> = +0.5，<i class="m ch">h</i> 都是 0.25。</p>
+
+  <figure class="fig" id="fig-leaf">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 4</span><span class="fig-title">样本落进叶子，叶子求和，抛物线的最低点就是 w*</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>好瓜 g = −0.5</span><span><i class="sw sq" style="background:var(--neg)"></i>坏瓜 g = +0.5</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="17 个西瓜按含糖率落入两片叶子，每片叶子累加 G 和 H，并画出关于 w 的抛物线"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="leaf-lam">λ</label><input type="range" id="leaf-lam" min="0" max="4" step="0.1" value="1"><output for="leaf-lam">1.0</output></div>
+      <span class="param-note">λ 越大，w* 越靠近 0：正则在把叶子分数往回拉。</span>
+    </div>
+    <div class="live"><div class="eqlive" id="leaf-eq"></div></div>
+  </figure>
+</section>
+
+<!-- ============ 5 ============ -->
+<section class="chapter prose" id="c5">
+  <div class="chapter-head"><span class="chapter-no">第 5 章</span><h2>在哪里切一刀：Gain 与贪心扫描</h2></div>
+  <p>有了结构分数，就能比较“切”和“不切”。把一个节点分成左右两个孩子，目标函数的下降量是：</p>
+  <div class="eq">Gain = <span class="frac"><span>1</span><span>2</span></span> [ <span class="frac"><span><i class="cg">G<sub>L</sub></i><sup>2</sup></span><span><i class="ch">H<sub>L</sub></i> + <i>λ</i></span></span> + <span class="frac"><span><i class="cg">G<sub>R</sub></i><sup>2</sup></span><span><i class="ch">H<sub>R</sub></i> + <i>λ</i></span></span> − <span class="frac"><span>(<i class="cg">G<sub>L</sub></i> + <i class="cg">G<sub>R</sub></i>)<sup>2</sup></span><span><i class="ch">H<sub>L</sub></i> + <i class="ch">H<sub>R</sub></i> + <i>λ</i></span></span> ] − <i>γ</i></div>
+  <p>前两项是切开以后左右两片叶子的分数，第三项是不切时的分数，<i class="m">γ</i> 是多出一片叶子的代价。Gain 越大越好；如果最好的 Gain 都不大于 0，这个节点就不切了。</p>
+  <p>怎么找到 Gain 最大的切法？精确贪心算法（exact greedy）：对每个特征，把节点里的样本按特征值排好序，从左往右扫一遍。每往右挪一格，只要把一个样本的 <i class="m cg">g</i>、<i class="m ch">h</i> 从右边挪到左边，<i class="m cg">G<sub>L</sub></i>、<i class="m ch">H<sub>L</sub></i> 累加即可，右边用 <i class="m cg">G</i> − <i class="m cg">G<sub>L</sub></i> 算。扫完所有特征，取 Gain 最大的位置。</p>
+
+  <figure class="fig" id="fig-scan">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 5</span><span class="fig-title">在根节点上扫描两个特征的所有切分点</span>
+      <span class="fig-legend"><span><i class="sw sq" style="background:var(--g)"></i>g</span><span><i class="sw sq" style="background:var(--h)"></i>h</span><span><i class="sw" style="background:var(--pos)"></i>好瓜</span><span><i class="sw sq" style="background:var(--neg)"></i>坏瓜</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="按特征值排序的样本、移动的切分线、左右两侧的 G 和 H，以及每个切分位置的 Gain"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="seg-wrap"><span>用哪一轮的 g、h</span><div class="seg" id="scan-round" role="group" aria-label="轮次"><button type="button" data-v="0" aria-pressed="true">第 1 棵树</button><button type="button" data-v="1">第 2 棵树</button></div></div>
+      <div class="param"><label for="scan-mcw">min_child_weight</label><input type="range" id="scan-mcw" min="0" max="1.5" step="0.25" value="0.5"><output for="scan-mcw">0.50</output></div>
+    </div>
+    <div class="live"><div class="eqlive" id="scan-eq"></div></div>
+  </figure>
+
+  <p>图里画 × 的位置不允许切：某一侧的 <i class="m ch">H</i> 之和小于 <span class="mono">min_child_weight</span>。第一轮每个瓜的 <i class="m ch">h</i> 都是 0.25，所以 min_child_weight = 0.5 意味着每侧至少 2 个瓜；XGBoost 的默认值是 1，也就是至少 4 个瓜。<mark>min_child_weight 限制的是 h 的总和，不是样本个数</mark>，这一点常被误解。切到第 2 棵树看看，<i class="m ch">h</i> 已经不再相等了。</p>
+  <p>成本：每个特征只需要在训练开始时排一次序（第 8 章的列块），之后每个节点、每个特征扫一遍，是线性时间。</p>
+</section>
+
+<!-- ============ 6 ============ -->
+<section class="chapter prose" id="c6">
+  <div class="chapter-head"><span class="chapter-no">第 6 章</span><h2>长成一棵树：递归、停止与剪枝</h2></div>
+  <p>找到根节点的最佳分裂后，对左右两个孩子重复同样的过程，树就一层层长出来。一个节点在下面几种情况下停下来当叶子：</p>
+  <ul>
+    <li>深度已经到了 <span class="mono">max_depth</span>；</li>
+    <li>没有任何切分能让两侧的 <i class="m ch">H</i> 都达到 <span class="mono">min_child_weight</span>；</li>
+    <li>最好的切分也不能让目标函数下降（Gain ≤ 0）。</li>
+  </ul>
+  <p>叶子确定后，每片叶子取 <i class="m">w</i>* = −<i class="m cg">G</i>/(<i class="m ch">H</i>+<i class="m">λ</i>)。左边的散点图是同一件事的另一面：每切一刀，就在特征空间里画一条线。</p>
+
+  <figure class="fig" id="fig-grow">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 6</span><span class="fig-title">第一棵树的生长过程（拖动参数看看树怎么变）</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>好瓜 / 正分数</span><span><i class="sw sq" style="background:var(--neg)"></i>坏瓜 / 负分数</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="左侧为密度-含糖率散点图及逐步出现的切分线，右侧为对应的树结构"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="grow-lam">λ</label><input type="range" id="grow-lam" min="0" max="3" step="0.1" value="1"><output for="grow-lam">1.0</output></div>
+      <div class="param"><label for="grow-gam">γ</label><input type="range" id="grow-gam" min="0" max="3" step="0.1" value="0"><output for="grow-gam">0.0</output></div>
+      <div class="param"><label for="grow-mcw">min_child_weight</label><input type="range" id="grow-mcw" min="0" max="1.5" step="0.25" value="0.5"><output for="grow-mcw">0.50</output></div>
+      <div class="seg-wrap"><span>max_depth</span><div class="seg" id="grow-depth" role="group" aria-label="最大深度"><button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3" aria-pressed="true">3</button><button type="button" data-v="4">4</button></div></div>
+      <span class="param-note">试试把 γ 拖到 1.7：右边那次分裂在 γ = 0 时的 Gain 只有 1.599，减去 1.7 变成负数，会被剪掉。再把 min_child_weight 拖回默认值 1，树的第二刀会换到另一个位置。</span>
+    </div>
+  </figure>
+
+  <p><b>γ 的剪枝。</b>exact 方法先把树长到 max_depth，再从下往上检查：一个节点的两个孩子都是叶子、而它的 Gain（已经减去 <i class="m">γ</i>）小于 0，就把这次分裂剪掉。因为是自底向上，一个自身 Gain 不大、下面却接着一个大 Gain 的分裂会被保留。默认的 hist 方法则在展开节点时直接检查这个门槛。</p>
+  <div class="aside">
+    <span class="label">对照源码</span>
+    <p>XGBoost 输出的 gain（<span class="mono">get_dump(with_stats=True)</span> 或 <span class="mono">trees_to_dataframe()</span> 里的 Gain）是方括号里那部分，既没有乘 ½，也没有减 γ。源码的剪枝条件是 <span class="mono">gain &lt; gamma</span>，所以本页公式里的 γ 相当于参数 <span class="mono">gamma</span> 的一半。</p>
+    <p>另外，dump 出来的叶子值已经乘过 η，cover 就是 <i class="m ch">H</i>。比如图 6 的根节点，xgboost 打印的是 <span class="mono">gain=4.875, cover=4.25</span>，本页显示 Gain = 4.875 / 2 = 2.438。</p>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section class="chapter prose" id="c7">
+  <div class="chapter-head"><span class="chapter-no">第 7 章</span><h2>训练循环：更新预测，再来一棵</h2></div>
+  <p>一棵树建好，所有样本的预测都往前走一小步：</p>
+  <div class="eq"><i>ŷ<sub>i</sub></i><sup>(<i>t</i>)</sup> = <i>ŷ<sub>i</sub></i><sup>(<i>t</i>−1)</sup> + <i>η</i> · <i>w</i><sup>*</sup><sub><i>q<sub>t</sub></i>(<i>x<sub>i</sub></i>)</sub></div>
+  <p>预测变了，<i class="m cg">g</i> 和 <i class="m ch">h</i> 也跟着变，下一棵树就在新的 <i class="m cg">g</i>、<i class="m ch">h</i> 上重做第 4–6 章的事情。右边的表格里能看到：已经分对的瓜 |<i class="m cg">g</i>| 越来越小，<i class="m ch">h</i> 也在变小，对后面的树影响越来越弱；还没分对的瓜 |<i class="m cg">g</i>| 仍然很大，后面的树会继续盯着它们。</p>
+
+  <figure class="fig" id="fig-loop">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 7</span><span class="fig-title">完整的训练循环：一轮四步，重复 20 轮</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>p &gt; 0.5</span><span><i class="sw sq" style="background:var(--neg)"></i>p &lt; 0.5</span></span>
+    </figcaption>
+    <div class="phases" aria-hidden="true"><span class="phase" data-ph="0">① 算 g、h</span><span class="phase" data-ph="1">② 长一棵树</span><span class="phase" data-ph="2">③ 叶子取 w*</span><span class="phase" data-ph="3">④ 更新预测</span></div>
+    <div class="split">
+      <div class="stage"><canvas role="img" aria-label="特征空间中的概率分布随轮次变化，以及训练集对数损失的下降曲线"></canvas></div>
+      <div class="tablebox"><table class="samples" id="loop-table" aria-label="每个西瓜当前的预测和梯度"></table></div>
+    </div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="loop-eta">学习率 η</label><input type="range" id="loop-eta" min="0.05" max="1" step="0.05" value="0.3"><output for="loop-eta">0.30</output></div>
+      <span class="param-note">其余参数：λ = 1，γ = 0，max_depth = 3，min_child_weight = 0.5，base_score = 0.5。表中 ŷ 是 log-odds，p = σ(ŷ)。</span>
+    </div>
+  </figure>
+
+  <p>什么时候停？要么事先定好树的数量（<span class="mono">num_boost_round</span> 或 <span class="mono">n_estimators</span>），要么用验证集做早停：验证集上的指标连续若干轮（<span class="mono">early_stopping_rounds</span>）没有变好就停下，保留最好的那一轮。</p>
+  <p>多分类（<span class="mono">multi:softprob</span>）也是同一个循环，只是每一轮要为每个类别各建一棵树：<i class="m">K</i> 个类别就有 <i class="m">K</i> 套 <i class="m cg">g</i>、<i class="m ch">h</i>，每轮长 <i class="m">K</i> 棵树。</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section class="chapter prose" id="c8">
+  <div class="chapter-head"><span class="chapter-no">第 8 章</span><h2>工程加速：直方图、缺失值与并行</h2></div>
+  <p>前面讲的是数学。XGBoost 能在上亿行数据上跑得快，还靠几项工程设计。</p>
+
+  <h3>8.1 直方图算法（tree_method="hist"）</h3>
+  <p>精确贪心要在每个节点把每个特征的每个取值都试一遍，数据一大就慢。hist 方法先把每个连续特征按分位数切成有限个桶（<span class="mono">max_bin</span>，默认 256），之后每个节点只要：</p>
+  <ol>
+    <li>对每个特征建一张梯度直方图：每个桶里 <i class="m cg">g</i> 的和、<i class="m ch">h</i> 的和；</li>
+    <li>在桶的边界上从左往右扫描，用同一个 Gain 公式。</li>
+  </ol>
+  <p>候选切分点从“不同取值的个数”降到最多 255 个，累加也变成按桶进行。XGBoost 2.0 起默认的 tree_method 就是 hist。</p>
+
+  <figure class="fig" id="fig-hist">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 8</span><span class="fig-title">分桶、梯度直方图，以及“父减子”技巧（200 个瓜）</span>
+      <span class="fig-legend"><span><i class="sw sq" style="background:var(--g)"></i>G</span><span><i class="sw sq" style="background:var(--h)"></i>H</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="样本按分位数分桶，累积每个桶的 G 与 H，并在桶边界扫描 Gain；最后演示用父节点直方图减去一个孩子得到另一个孩子"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="seg-wrap"><span>max_bin</span><div class="seg" id="hist-bins" role="group" aria-label="桶数"><button type="button" data-v="4">4</button><button type="button" data-v="8" aria-pressed="true">8</button><button type="button" data-v="16">16</button><button type="button" data-v="32">32</button></div></div>
+      <span class="param-note">桶越多，结果越接近精确算法，计算量也越大。</span>
+    </div>
+  </figure>
+
+  <p>最后一步是 hist 的一个省力技巧：父节点的直方图 = 左孩子 + 右孩子。所以只需要对样本少的那个孩子真正统计一遍，另一个直接用减法得到。</p>
+  <p>分位点怎么取也有讲究。论文里的 approx 方法每棵树都用 <i class="m ch">h</i> 作为权重重新取分位点（加权分位数草图）。原因是目标函数可以改写成以 <i class="m ch">h<sub>i</sub></i> 为权重的平方损失：</p>
+  <div class="eq"><span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> [ <i class="cg">g<sub>i</sub></i><i>f</i>(<i>x<sub>i</sub></i>) + <span class="frac"><span>1</span><span>2</span></span><i class="ch">h<sub>i</sub></i><i>f</i>(<i>x<sub>i</sub></i>)<sup>2</sup> ] = <span class="op"><span class="t">&nbsp;</span><span class="s">Σ</span><span class="b">i</span></span> <span class="frac"><span>1</span><span>2</span></span><i class="ch">h<sub>i</sub></i> ( <i>f</i>(<i>x<sub>i</sub></i>) − (−<i class="cg">g<sub>i</sub></i>/<i class="ch">h<sub>i</sub></i>) )<sup>2</sup> + 常数</div>
+  <p>也就是说每个样本在拟合目标 −<i class="m cg">g</i>/<i class="m ch">h</i>，分量是 <i class="m ch">h</i>，所以桶应该按 <i class="m ch">h</i> 的总量均分。默认的 hist 方法更省事：训练开始前只取一次分位点（按样本权重），之后所有节点、所有树都复用这些桶。</p>
+
+  <h3>8.2 缺失值：为每个节点学一个默认方向</h3>
+  <p>真实数据里常有缺失值，或者大量的 0（比如 one-hot 编码之后）。XGBoost 的做法是：扫描时只遍历有值的样本；缺失的样本先整体放到右边扫一遍，再整体放到左边扫一遍，哪边的 Gain 更大，就把哪边记为这个节点的默认方向。预测时遇到缺失值，直接走默认方向。</p>
+
+  <figure class="fig" id="fig-missing">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 9</span><span class="fig-title">3 个瓜缺了含糖率：缺失值放左边还是右边？</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>好瓜</span><span><i class="sw sq" style="background:var(--neg)"></i>坏瓜</span><span><i class="sw ln" style="background:var(--ink-2)"></i>缺失放右</span><span><i class="sw ln" style="background:repeating-linear-gradient(90deg,var(--muted) 0 4px,transparent 4px 7px)"></i>缺失放左</span></span>
+    </figcaption>
+    <div class="stage"><canvas role="img" aria-label="有值的样本排序后扫描两遍，缺失值分别归到右侧和左侧，比较两条 Gain 曲线"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+  </figure>
+
+  <p>这样处理的计算量只和非缺失值的个数成正比，数据越稀疏越划算。在论文的实验里，这种稀疏感知算法比朴素实现快了 50 倍以上。</p>
+
+  <h3>8.3 系统层面</h3>
+  <div class="sys">
+    <div class="sys-card">
+      <h4>列块（Column Block）</h4>
+      <svg viewBox="0 0 240 92" aria-hidden="true">
+        <g font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--muted)"><text x="6" y="10">特征 1</text><text x="84" y="10">特征 2</text><text x="162" y="10">特征 3</text></g>
+        <g fill="var(--plate-2)" stroke="var(--rule)">
+          <rect x="6" y="16" width="70" height="72" rx="3"/><rect x="84" y="16" width="70" height="72" rx="3"/><rect x="162" y="16" width="70" height="72" rx="3"/>
+        </g>
+        <g fill="var(--h)" opacity=".85">
+          <rect x="12" y="22" width="12" height="7"/><rect x="12" y="33" width="20" height="7"/><rect x="12" y="44" width="30" height="7"/><rect x="12" y="55" width="42" height="7"/><rect x="12" y="66" width="52" height="7"/><rect x="12" y="77" width="58" height="7"/>
+          <rect x="90" y="22" width="8" height="7"/><rect x="90" y="33" width="16" height="7"/><rect x="90" y="44" width="34" height="7"/><rect x="90" y="55" width="44" height="7"/><rect x="90" y="66" width="56" height="7"/>
+          <rect x="168" y="22" width="18" height="7"/><rect x="168" y="33" width="26" height="7"/><rect x="168" y="44" width="40" height="7"/><rect x="168" y="55" width="50" height="7"/><rect x="168" y="66" width="58" height="7"/><rect x="168" y="77" width="62" height="7"/>
+        </g>
+      </svg>
+      <p>数据按列压缩存储（CSC），每一列在训练开始前按特征值排好序，之后所有节点、所有树都复用，不用重复排序。缺失值直接不存。</p>
+    </div>
+    <div class="sys-card">
+      <h4>一棵树内部并行</h4>
+      <svg viewBox="0 0 240 92" aria-hidden="true">
+        <g font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--muted)"><text x="6" y="12">树 1</text><text x="62" y="12">树 2</text><text x="118" y="12">树 3</text><text x="178" y="12">…</text></g>
+        <g stroke="var(--faint)" stroke-width="1.5" fill="none"><path d="M44 30h12M100 30h12M156 30h12" marker-end="url(#ah)"/></g>
+        <defs><marker id="ah" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0L6 3L0 6z" fill="var(--faint)"/></marker></defs>
+        <g fill="var(--plate-2)" stroke="var(--rule)"><rect x="6" y="18" width="38" height="24" rx="3"/><rect x="62" y="18" width="38" height="24" rx="3" stroke="var(--ink-2)"/><rect x="118" y="18" width="38" height="24" rx="3"/></g>
+        <g stroke="var(--g)" stroke-width="3" stroke-linecap="round"><path d="M70 54v30M80 54v22M90 54v34"/></g>
+        <g font-family="IBM Plex Mono, monospace" font-size="8.5" fill="var(--muted)"><text x="100" y="62">线程 1 → 特征 1</text><text x="100" y="74">线程 2 → 特征 2</text><text x="100" y="86">线程 3 → 特征 3</text></g>
+      </svg>
+      <p>树和树之间必须串行，后一棵依赖前一棵的结果。并行发生在一棵树内部：不同特征的扫描、直方图的构建分给多个线程同时做；GPU（<span class="mono">device="cuda"</span>）也是同样的思路。</p>
+    </div>
+    <div class="sys-card">
+      <h4>缓存感知与外存计算</h4>
+      <svg viewBox="0 0 240 92" aria-hidden="true">
+        <g fill="var(--plate-2)" stroke="var(--rule)"><rect x="6" y="14" width="100" height="30" rx="3"/><rect x="134" y="14" width="100" height="30" rx="3"/><rect x="6" y="56" width="228" height="30" rx="3"/></g>
+        <g font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--muted)"><text x="14" y="33">内存：当前块</text><text x="142" y="33">预读线程</text><text x="14" y="75">磁盘：压缩后的数据块 1 · 2 · 3 · 4 …</text></g>
+        <g stroke="var(--h)" stroke-width="1.5"><path d="M184 44v10M106 29h26" marker-end="url(#ah2)"/></g>
+        <defs><marker id="ah2" viewBox="0 0 6 6" refX="5" refY="3" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L6 3L0 6z" fill="var(--h)"/></marker></defs>
+      </svg>
+      <p>按排序后的顺序读取 <i class="m cg">g</i>、<i class="m ch">h</i> 是跳跃访问，XGBoost 给每个线程开缓冲区预取，减少缓存未命中。数据放不进内存时，分块压缩存到磁盘，用单独的线程提前读下一块。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section class="chapter prose" id="c9">
+  <div class="chapter-head"><span class="chapter-no">第 9 章</span><h2>预测：一个新瓜走过所有树</h2></div>
+  <p>训练完以后，预测一个新样本只需要让它从每棵树的根走到某片叶子，把所有叶子值加起来，再加上起点：</p>
+  <div class="eq wrap"><span class="eqp"><i>ŷ</i> = base_margin + <span class="op"><span class="t">K</span><span class="s">Σ</span><span class="b">k=1</span></span> <i>η</i>·<i>w</i><sup>(<i>k</i>)</sup><sub><i>q<sub>k</sub></i>(<i>x</i>)</sub></span><span class="eqp"><i>p</i> = σ(<i>ŷ</i>) = <span class="frac"><span>1</span><span>1 + e<sup>−<i>ŷ</i></sup></span></span></span></div>
+  <p>base_score = 0.5 对应的 log-odds 是 0。二分类最后过一次 sigmoid，把 log-odds 变成概率。在左边的图里拖动那个“?”，换一个瓜试试。</p>
+
+  <figure class="fig" id="fig-predict">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 10</span><span class="fig-title">10 棵树各投一票，相加后过 sigmoid（可拖动新瓜）</span>
+      <span class="fig-legend"><span><i class="sw" style="background:var(--pos)"></i>往好瓜推</span><span><i class="sw sq" style="background:var(--neg)"></i>往坏瓜推</span></span>
+    </figcaption>
+    <div class="stage"><canvas class="grab" role="img" aria-label="新样本在每棵树中的路径、各棵树输出的累加，以及 sigmoid 映射到概率"></canvas></div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="param"><label for="pred-x0">密度</label><input type="range" id="pred-x0" min="0.2" max="0.8" step="0.005" value="0.62"><output for="pred-x0">0.620</output></div>
+      <div class="param"><label for="pred-x1">含糖率</label><input type="range" id="pred-x1" min="0.01" max="0.49" step="0.005" value="0.3"><output for="pred-x1">0.300</output></div>
+    </div>
+  </figure>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="chapter prose" id="c10">
+  <div class="chapter-head"><span class="chapter-no">第 10 章</span><h2>参数速查：每个参数作用在哪一步</h2></div>
+  <p>把常用参数放回训练循环里看，就知道它们各自在管什么。</p>
+  <div class="ptable-wrap">
+    <table class="ptable">
+      <thead><tr><th>参数</th><th>作用在哪</th><th>默认值</th><th>调大会怎样</th></tr></thead>
+      <tbody>
+        <tr><td>objective</td><td><span class="where">第 3 章</span>决定 g、h 的公式，例如 reg:squarederror、binary:logistic、multi:softprob</td><td class="d">reg:squarederror</td><td>—</td></tr>
+        <tr><td>base_score</td><td><span class="where">起点</span>所有样本的初始预测</td><td class="d">自动估计</td><td>树足够多时影响很小</td></tr>
+        <tr><td>eta（learning_rate）</td><td><span class="where">第 7 章</span>每棵树的输出先乘 η 再加进预测</td><td class="d">0.3</td><td>每棵树走得更远，需要的树更少，更容易过拟合</td></tr>
+        <tr><td>num_boost_round</td><td><span class="where">第 7 章</span>一共建多少棵树，常配合 early_stopping_rounds</td><td class="d">10（xgb.train）</td><td>拟合更充分，太多会过拟合</td></tr>
+        <tr><td>max_depth</td><td><span class="where">第 6 章</span>树的最大深度</td><td class="d">6</td><td>树更复杂，更容易过拟合</td></tr>
+        <tr><td>min_child_weight</td><td><span class="where">第 5–6 章</span>每个孩子的 H 之和的下限</td><td class="d">1</td><td>更保守，小叶子切不出来</td></tr>
+        <tr><td>gamma（min_split_loss）</td><td><span class="where">第 5–6 章</span>一次分裂至少要带来多少增益</td><td class="d">0</td><td>更保守，剪掉更多分裂</td></tr>
+        <tr><td>lambda（reg_lambda）</td><td><span class="where">第 4–5 章</span>L2 正则，在 w* 和 Gain 的分母里</td><td class="d">1</td><td>叶子分数更小，更保守</td></tr>
+        <tr><td>alpha（reg_alpha）</td><td><span class="where">第 4–5 章</span>L1 正则，先把 G 往 0 收缩 α 再算 w*</td><td class="d">0</td><td>更多叶子分数变成 0</td></tr>
+        <tr><td>subsample</td><td><span class="where">每棵树</span>每棵树随机抽取的样本比例</td><td class="d">1</td><td>调小会更随机，有助于防过拟合</td></tr>
+        <tr><td>colsample_bytree / bylevel / bynode</td><td><span class="where">每棵树/层/节点</span>随机抽取可用特征的比例</td><td class="d">1</td><td>调小会更随机，也更快</td></tr>
+        <tr><td>tree_method</td><td><span class="where">第 8 章</span>exact、approx 或 hist</td><td class="d">hist</td><td>—</td></tr>
+        <tr><td>max_bin</td><td><span class="where">第 8 章</span>hist 每个特征的最大桶数</td><td class="d">256</td><td>更接近精确算法，更慢</td></tr>
+        <tr><td>grow_policy</td><td><span class="where">第 6 章</span>depthwise 逐层长；lossguide 每次展开 Gain 最大的叶子（配合 max_leaves）</td><td class="d">depthwise</td><td>—</td></tr>
+        <tr><td>scale_pos_weight</td><td><span class="where">第 3 章</span>正样本的 g、h 乘上这个权重，用于类别不平衡</td><td class="d">1</td><td>更重视正样本</td></tr>
+        <tr><td>max_delta_step</td><td><span class="where">第 4 章</span>限制每片叶子输出的绝对值</td><td class="d">0（不限制）</td><td>极不平衡的逻辑回归里有助于稳定</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>用真正的 XGBoost 复现图 6</h3>
+  <p>下面这段代码用同样的数据和参数训练，打印出的第一棵树和图 6 一致（gain 是本页 Gain 的 2 倍，leaf 是 η·w*，cover 是 H）。</p>
+<pre class="code">import numpy as np, xgboost as xgb
+
+<span class="c"># 西瓜数据集 3.0α：密度、含糖率、是否好瓜</span>
+X = np.array([[.697,.460],[.774,.376],[.634,.264],[.608,.318],[.556,.215],[.403,.237],
+              [.481,.149],[.437,.211],[.666,.091],[.243,.267],[.245,.057],[.343,.099],
+              [.639,.161],[.657,.198],[.360,.370],[.593,.042],[.719,.103]])
+y = np.array([1]*8 + [0]*9)
+
+params = {"objective": "binary:logistic", "eta": 0.3, "max_depth": 3,
+          "lambda": 1, "gamma": 0, "min_child_weight": 0.5,
+          "base_score": 0.5, "tree_method": "exact"}
+bst = xgb.train(params, xgb.DMatrix(X, label=y, feature_names=["density", "sugar"]),
+                num_boost_round=20)
+print(bst.get_dump(with_stats=True)[0])
+
+<span class="c"># 0:[sugar&lt;0.20449999] yes=1,no=2,missing=1,gain=4.87545776,cover=4.25
+#     1:leaf=-0.300000012,cover=2
+#     2:[density&lt;0.381500006] yes=3,no=4,missing=3,gain=3.19813514,cover=2.25
+#         3:leaf=-0.200000018,cover=0.5
+#         4:leaf=0.381818205,cover=1.75</span></pre>
+
+  <h3>一句话串起来</h3>
+  <ol class="summary">
+    <li><span>从 base_score 出发，按当前预测给每个样本算出 <i class="m cg">g</i> 和 <i class="m ch">h</i>。</span></li>
+    <li><span>用 Gain 公式贪心地长出一棵树：逐个特征排序扫描，选 Gain 最大的切分，直到触发停止条件，再用 γ 剪枝。</span></li>
+    <li><span>每片叶子填上 <i class="m">w</i>* = −<i class="m cg">G</i>/(<i class="m ch">H</i>+<i class="m">λ</i>)。</span></li>
+    <li><span>预测加上 <i class="m">η</i> 倍的新树输出，回到第 1 步，直到树的数量够了或验证集不再变好。</span></li>
+  </ol>
+
+  <footer class="foot">
+    <p>参考：Tianqi Chen, Carlos Guestrin. <i>XGBoost: A Scalable Tree Boosting System</i>. KDD 2016；XGBoost 官方文档中的 Introduction to Boosted Trees、Tree Methods 与 Parameters。西瓜数据集 3.0α 出自周志华《机器学习》。</p>
+  </footer>
+</section>
+</main>
+</div>
+<script>
+(() => {
+'use strict';
+/* =====================================================================
+   XGBoost 动画图解 · core
+   ===================================================================== */
+const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+/* ---------- small math & format helpers ---------- */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const lerpArr = (A, B, t) => A.map((a, i) => a + (B[i] - a) * t);
+const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const sub01 = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
+const sum = a => a.reduce((s, v) => s + v, 0);
+const mean = a => sum(a) / a.length;
+const f32 = Math.fround;
+const MINUS = '−';
+function fmt(v, d = 3) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const z = (0).toFixed(d);
+  let s = v.toFixed(d);
+  if (s === '-' + z) s = z;
+  return s.replace('-', MINUS);
+}
+const fmtS = (v, d = 3) => { const s = fmt(v, d); return v > 0 && s !== (0).toFixed(d) ? '+' + s : s; };
+const par = (v, d = 3) => (v < 0 ? '(' + fmt(v, d) + ')' : fmt(v, d));
+const $ = (sel, root = document) => root.querySelector(sel);
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function gauss(rng) { let u = 0; while (u === 0) u = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng()); }
+
+/* ---------- theme tokens (read from CSS) ---------- */
+const C = {};
+const TOKENS = ['paper', 'plate', 'plate-2', 'ink', 'ink-2', 'muted', 'faint', 'rule', 'grid', 'g', 'h', 'pos', 'neg', 'mark'];
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of TOKENS) C[k.replace('-', '')] = (cs.getPropertyValue('--' + k) || '').trim() || '#888888';
+}
+const rgbCache = new Map();
+function A(hex, a) {
+  let rgb = rgbCache.get(hex);
+  if (!rgb) {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    rgb = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    rgbCache.set(hex, rgb);
+  }
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+}
+const signCol = v => (v >= 0 ? C.pos : C.neg);
+
+/* ---------- canvas fonts ---------- */
+const FF = {
+  mono: '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  sans: '"Noto Sans SC", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif',
+  math: '"STIX Two Text", "Times New Roman", serif',
+};
+const fMono = (s, w = 400) => `${w} ${s}px ${FF.mono}`;
+const fSans = (s, w = 400) => `${w} ${s}px ${FF.sans}`;
+const fMath = (s, it = true) => `${it ? 'italic ' : ''}400 ${s}px ${FF.math}`;
+
+/* ---------- canvas stage ---------- */
+const ALL = [];   // every figure: { render() }
+class Stage {
+  constructor(canvas, heightFor) {
+    this.cv = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.heightFor = heightFor;
+    this.w = 0; this.h = 0;
+    this.onResize = null;
+    this.resize();
+    if (window.ResizeObserver) new ResizeObserver(() => { if (this.resize() && this.onResize) this.onResize(); }).observe(canvas.parentElement);
+  }
+  resize() {
+    const w = Math.max(240, Math.round(this.cv.parentElement.clientWidth));
+    const h = Math.round(this.heightFor(w));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (w === this.w && h === this.h && this.dpr === dpr) return false;
+    this.w = w; this.h = h; this.dpr = dpr;
+    this.cv.style.height = h + 'px';
+    this.cv.width = Math.round(w * dpr);
+    this.cv.height = Math.round(h * dpr);
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return true;
+  }
+  clear() {
+    const c = this.ctx;
+    c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, this.cv.width, this.cv.height); c.restore();
+    c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    c.lineCap = 'butt'; c.lineJoin = 'miter'; c.setLineDash([]); c.globalAlpha = 1; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  }
+  pointer(e) { const r = this.cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+}
+
+/* ---------- timeline player ---------- */
+const ICON = {
+  reset: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.8 2.8v3.9h3.9"/><path d="M3.2 6.6A5.2 5.2 0 1 1 3.6 10.4"/></svg>',
+  prev: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3.5 3h1.7v10H3.5zM13 3.3v9.4L6.4 8z"/></svg>',
+  next: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M10.8 3h1.7v10h-1.7zM3 3.3v9.4L9.6 8z"/></svg>',
+  play: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.2 2.6v10.8L13 8z"/></svg>',
+  pause: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.6h3v10.8H4zM9 2.6h3v10.8H9z"/></svg>',
+};
+class Timeline {
+  constructor(fig, build, draw) {
+    this.fig = fig; this.build = build; this.drawFn = draw;
+    this.t = 0; this.playing = false; this.stopAt = null; this.raf = 0; this.cur = -1; this.started = false;
+    this.cap = fig.querySelector('.caption');
+    const bar = fig.querySelector('.controls');
+    bar.innerHTML =
+      '<div class="tl-buttons">' +
+      `<button type="button" class="btn" data-a="reset" title="从头开始" aria-label="从头开始">${ICON.reset}</button>` +
+      `<button type="button" class="btn" data-a="prev" title="上一步" aria-label="上一步">${ICON.prev}</button>` +
+      `<button type="button" class="btn primary" data-a="play" aria-label="播放">${ICON.play}<span>播放</span></button>` +
+      `<button type="button" class="btn" data-a="next" title="下一步" aria-label="下一步">${ICON.next}</button>` +
+      '</div>' +
+      `<input class="scrub" type="range" id="${fig.id}-scrub" min="0" max="1000" step="1" value="0" aria-label="时间轴">` +
+      '<span class="tl-count mono" aria-hidden="true"></span>';
+    this.playBtn = bar.querySelector('[data-a="play"]');
+    this.scrub = bar.querySelector('.scrub');
+    this.count = bar.querySelector('.tl-count');
+    bar.addEventListener('click', e => {
+      const b = e.target.closest('button[data-a]');
+      if (!b) return;
+      this.started = true;
+      const a = b.dataset.a;
+      if (a === 'play') (this.playing && this.stopAt === null ? this.pause() : this.play());
+      else if (a === 'next') this.next();
+      else if (a === 'prev') this.prev();
+      else this.reset();
+    });
+    this.scrub.addEventListener('input', () => {
+      this.started = true; this.pause();
+      this.t = (+this.scrub.value / 1000) * this.total;
+      this.render();
+    });
+    this.rebuild('start');
+  }
+  rebuild(mode = 'keep') {
+    const prev = this.cur;
+    this.segs = this.build();
+    this.starts = [];
+    let acc = 0;
+    for (const s of this.segs) {
+      if (s.dur === undefined) s.dur = 800;
+      if (s.hold === undefined) s.hold = 1200;
+      this.starts.push(acc); acc += s.dur + s.hold;
+    }
+    this.total = acc;
+    if (mode === 'start') this.t = this.home();
+    else if (mode === 'end') this.t = this.total;
+    else { const i = clamp(prev < 0 ? 0 : prev, 0, this.segs.length - 1); this.t = this.starts[i] + this.segs[i].dur; }
+    if (mode !== 'keep') { this.playing = false; this.stopAt = null; cancelAnimationFrame(this.raf); this.setBtn(); }
+    this.cur = -1;
+    this.render();
+  }
+  home() { return this.segs.length ? this.segs[0].dur : 0; } // first step at rest: never an empty frame
+  locate(t) {
+    let i = this.segs.length - 1;
+    for (let k = 0; k < this.segs.length; k++) {
+      if (t < this.starts[k] + this.segs[k].dur + this.segs[k].hold) { i = k; break; }
+    }
+    const s = this.segs[i];
+    const p = RM ? 1 : clamp((t - this.starts[i]) / Math.max(1, s.dur), 0, 1);
+    return { i, p };
+  }
+  render() {
+    if (!this.segs || !this.segs.length) return;
+    const { i, p } = this.locate(this.t);
+    const s = this.segs[i];
+    if (i !== this.cur || s._dirty) {
+      this.cur = i; s._dirty = false;
+      this.cap.innerHTML = (s.title ? `<span class="tt">${s.title}</span>` : '') + (s.text || '');
+    }
+    this.count.textContent = `${i + 1} / ${this.segs.length}`;
+    this.scrub.value = String(Math.round((this.t / Math.max(1, this.total)) * 1000));
+    this.drawFn(i, p, s);
+  }
+  setBtn() {
+    const on = this.playing && this.stopAt === null;
+    this.playBtn.innerHTML = on ? ICON.pause + '<span>暂停</span>' : ICON.play + '<span>播放</span>';
+    this.playBtn.setAttribute('aria-label', on ? '暂停' : '播放');
+  }
+  loop() {
+    cancelAnimationFrame(this.raf);
+    let last = performance.now();
+    const step = now => {
+      if (!this.playing) return;
+      const dt = Math.min(80, now - last);
+      last = now;
+      this.t += dt;
+      if (this.stopAt !== null && this.t >= this.stopAt) { this.t = this.stopAt; this.playing = false; this.stopAt = null; this.setBtn(); }
+      else if (this.t >= this.total) { this.t = this.total; this.playing = false; this.setBtn(); }
+      this.render();
+      if (this.playing) this.raf = requestAnimationFrame(step);
+    };
+    this.raf = requestAnimationFrame(step);
+  }
+  play() {
+    if (this.t >= this.total - 1) this.t = 0;
+    this.playing = true; this.stopAt = null; this.setBtn(); this.loop();
+  }
+  pause() { this.playing = false; this.stopAt = null; cancelAnimationFrame(this.raf); this.setBtn(); }
+  reset() { this.pause(); this.t = this.home(); this.render(); }
+  next() {
+    if (this.playing && this.stopAt === null) this.pause();
+    if (this.playing && this.stopAt !== null) { this.t = this.stopAt; this.playing = false; this.stopAt = null; }
+    const { i } = this.locate(this.t);
+    const endI = this.starts[i] + this.segs[i].dur;
+    if (this.t < endI - 0.5) { this.t = endI; this.setBtn(); this.render(); return; }
+    if (i >= this.segs.length - 1) { this.t = this.total; this.setBtn(); this.render(); return; }
+    this.t = this.starts[i + 1];
+    const stop = this.starts[i + 1] + this.segs[i + 1].dur;
+    if (RM) { this.t = stop; this.setBtn(); this.render(); return; }
+    this.stopAt = stop; this.playing = true; this.setBtn(); this.loop();
+  }
+  prev() {
+    this.pause();
+    const { i } = this.locate(this.t);
+    this.t = i === 0 ? this.home() : this.starts[i - 1] + this.segs[i - 1].dur;
+    this.render();
+  }
+  autoplay() { if (!this.started && !RM) { this.started = true; this.play(); } }
+}
+
+/* ---------- form helpers ---------- */
+function bindRange(id, show, onInput) {
+  const el = document.getElementById(id);
+  const out = el.parentElement.querySelector('output');
+  const upd = () => { if (out) out.textContent = show(+el.value); };
+  el.addEventListener('input', () => { upd(); onInput(+el.value); });
+  upd();
+  return el;
+}
+function bindSeg(id, onChange) {
+  const el = document.getElementById(id);
+  const btns = [...el.querySelectorAll('button[data-v]')];
+  btns.forEach(b => { if (!b.hasAttribute('aria-pressed')) b.setAttribute('aria-pressed', 'false'); });
+  el.addEventListener('click', e => {
+    const b = e.target.closest('button[data-v]');
+    if (!b || b.getAttribute('aria-pressed') === 'true') return;
+    btns.forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    onChange(b.dataset.v);
+  });
+  return el;
+}
+
+/* =====================================================================
+   mini XGBoost — exact greedy, depthwise, sparsity-aware, bottom-up prune.
+   Checked tree-by-tree against xgboost 3.2 (tree_method="exact").
+   Gain here follows the paper: ½·[GL²/(HL+λ) + GR²/(HR+λ) − G²/(H+λ)] − γ.
+   ===================================================================== */
+const sigmoid = z => 1 / (1 + Math.exp(-z));
+const LOSS = {
+  squared: {
+    grad: (y, m) => m - y,
+    hess: () => 1,
+    loss: (y, m) => 0.5 * (y - m) * (y - m),
+  },
+  logistic: {
+    grad: (y, m) => sigmoid(m) - y,
+    hess: (y, m) => { const p = sigmoid(m); return Math.max(p * (1 - p), 1e-16); },
+    loss: (y, m) => { const p = clamp(sigmoid(m), 1e-15, 1 - 1e-15); return -(y * Math.log(p) + (1 - y) * Math.log(1 - p)); },
+  },
+};
+const nodeScore = (G, H, P) => (H < P.mcw || H <= 0 ? 0 : (G * G) / (H + P.lambda));
+const nodeWeight = (G, H, P) => (H < P.mcw || H <= 0 ? 0 : -G / (H + P.lambda));
+const isMissing = v => v === null || v !== v;
+
+function scanFeature(X, g, h, idx, f, P, G, H, sparse) {
+  const present = idx.filter(i => !isMissing(X[i][f])).sort((a, b) => X[a][f] - X[b][f]);
+  const miss = idx.filter(i => isMissing(X[i][f]));
+  const parent = f32(nodeScore(G, H, P));
+  const evalSplit = (GL, HL, extra) => {
+    const GR = G - GL, HR = H - HL;
+    const valid = HL >= P.mcw && HR >= P.mcw;
+    const lossChg = valid ? f32(nodeScore(GL, HL, P) + nodeScore(GR, HR, P) - parent) : NaN;
+    return Object.assign({ GL, HL, GR, HR, valid, lossChg, gain: valid ? 0.5 * lossChg - P.gamma : NaN }, extra);
+  };
+  const passes = [];
+  const n = present.length;
+  if (sparse) { // missing -> right
+    const c = []; let GL = 0, HL = 0;
+    for (let k = 0; k < n; k++) {
+      const i = present[k]; GL += g[i]; HL += h[i];
+      const a = X[i][f];
+      if (k < n - 1) { const b = X[present[k + 1]][f]; if (a !== b) c.push(evalSplit(GL, HL, { k: k + 1, thr: (a + b) / 2, defaultLeft: false })); }
+      else if (miss.length) c.push(evalSplit(GL, HL, { k: n, thr: a + Math.abs(a) + 1e-6, defaultLeft: false, edge: true }));
+    }
+    passes.push(c);
+  }
+  { // missing -> left (the only pass for dense columns)
+    const c = []; let GR = 0, HR = 0;
+    for (let k = n - 1; k >= 0; k--) {
+      const i = present[k]; GR += g[i]; HR += h[i];
+      const b = X[i][f];
+      if (k > 0) { const a = X[present[k - 1]][f]; if (a !== b) c.push(evalSplit(G - GR, H - HR, { k, thr: (a + b) / 2, defaultLeft: true })); }
+      else if (miss.length) c.push(evalSplit(G - GR, H - HR, { k: 0, thr: b - Math.abs(b) - 1e-6, defaultLeft: true, edge: true }));
+    }
+    passes.push(c);
+  }
+  let best = null;
+  for (const c of passes) for (const s of c) if (s.valid && s.lossChg > (best ? best.lossChg : 1e-6)) best = s;
+  return { f, present, miss, passes, best };
+}
+
+function buildTree(X, g, h, P) {
+  const nFeat = X[0].length, nodes = [];
+  const sparseCol = [...Array(nFeat)].map((_, f) => X.some(r => isMissing(r[f])));
+  const goLeft = (node, x) => (isMissing(x[node.f]) ? node.defaultLeft : x[node.f] < node.thr);
+  function grow(idx, depth, parent) {
+    let G = 0, H = 0;
+    for (const i of idx) { G += g[i]; H += h[i]; }
+    const node = { id: nodes.length, idx, G, H, depth, parent, w: nodeWeight(G, H, P), leaf: true, split: false, scans: null };
+    nodes.push(node);
+    if (depth >= P.maxDepth) { node.why = 'depth'; return node; }
+    node.scans = [];
+    let best = null;
+    for (let f = 0; f < nFeat; f++) {
+      const s = scanFeature(X, g, h, idx, f, P, G, H, sparseCol[f]);
+      node.scans.push(s);
+      if (s.best && (!best || s.best.lossChg > best.lossChg)) best = Object.assign({}, s.best, { f });
+    }
+    if (best) {
+      Object.assign(node, { leaf: false, split: true, f: best.f, thr: best.thr, defaultLeft: best.defaultLeft, lossChg: best.lossChg, gain: 0.5 * best.lossChg - P.gamma });
+      node.left = grow(idx.filter(i => goLeft(node, X[i])), depth + 1, node);
+      node.right = grow(idx.filter(i => !goLeft(node, X[i])), depth + 1, node);
+    } else {
+      const anyCand = node.scans.some(s => s.passes.some(c => c.length));
+      const anyValid = node.scans.some(s => s.passes.some(c => c.some(x => x.valid)));
+      node.why = !anyCand ? 'single' : !anyValid ? 'mcw' : 'gain';
+    }
+    return node;
+  }
+  const root = grow(X.map((_, i) => i), 0, null);
+  const drop = n => { if (!n) return; n.removed = true; drop(n.left); drop(n.right); };
+  (function prune(n) {
+    if (n.leaf) return;
+    prune(n.left); prune(n.right);
+    if (n.left.leaf && n.right.leaf && n.gain < 0) { n.leaf = true; n.pruned = true; drop(n.left); drop(n.right); }
+  })(root);
+  // breadth-first ids, the way XGBoost numbers nodes
+  const bfs = [root];
+  for (let k = 0; k < bfs.length; k++) { const n = bfs[k]; n.bid = k; if (n.split) bfs.push(n.left, n.right); }
+  const leafOf = x => { let n = root; while (!n.leaf) n = goLeft(n, x) ? n.left : n.right; return n; };
+  const pathOf = x => { const p = [root]; let n = root; while (!n.leaf) { n = goLeft(n, x) ? n.left : n.right; p.push(n); } return p; };
+  return { root, nodes, bfs, leafOf, pathOf, goLeft };
+}
+
+function trainModel(X, y, P, rounds, lossName, base) {
+  const L = LOSS[lossName], n = y.length;
+  let m = new Array(n).fill(base);
+  const hist = [];
+  for (let t = 0; t < rounds; t++) {
+    const g = y.map((yi, i) => f32(L.grad(yi, m[i]))), h = y.map((yi, i) => f32(L.hess(yi, m[i])));
+    const tree = buildTree(X, g, h, P);
+    const before = m.slice();
+    m = m.map((mi, i) => mi + P.eta * tree.leafOf(X[i]).w);
+    hist.push({ g, h, tree, before, after: m.slice(), loss: y.reduce((s, yi, i) => s + L.loss(yi, m[i]), 0) / n });
+  }
+  return hist;
+}
+
+/* ---------- data ---------- */
+// 西瓜数据集 3.0α（周志华《机器学习》）：密度、含糖率、好瓜
+const MELON = [
+  [0.697, 0.460, 1], [0.774, 0.376, 1], [0.634, 0.264, 1], [0.608, 0.318, 1], [0.556, 0.215, 1],
+  [0.403, 0.237, 1], [0.481, 0.149, 1], [0.437, 0.211, 1], [0.666, 0.091, 0], [0.243, 0.267, 0],
+  [0.245, 0.057, 0], [0.343, 0.099, 0], [0.639, 0.161, 0], [0.657, 0.198, 0], [0.360, 0.370, 0],
+  [0.593, 0.042, 0], [0.719, 0.103, 0],
+];
+const MX = MELON.map(r => [r[0], r[1]]);
+const MY = MELON.map(r => r[2]);
+const NM = MELON.length;
+const ALLIDX = MX.map((_, i) => i);
+const FEAT = ['密度', '含糖率'];
+const DEMO = { eta: 0.3, lambda: 1, gamma: 0, maxDepth: 3, mcw: 0.5 };
+const DOM = [[0.2, 0.8], [0, 0.5]]; // plotting domain for 密度 / 含糖率
+const G1 = MY.map(y => f32(0.5 - y)); // first-round gradients (p = 0.5)
+const H1 = MY.map(() => 0.25);
+
+// 一天 48 个半小时点的用电负荷（GW），早晚两个高峰 + 噪声
+const LOAD = (() => {
+  const rng = mulberry32(20240517);
+  const f = hr => 22 + 5.5 * Math.exp(-(((hr - 10.5) / 2.6) ** 2)) + 8 * Math.exp(-(((hr - 19.5) / 2.3) ** 2)) - 3.5 * Math.exp(-(((hr - 4) / 2.5) ** 2));
+  const x = [], y = [];
+  for (let i = 0; i < 48; i++) { const hr = i * 0.5; x.push(hr); y.push(Math.round((f(hr) + 0.7 * gauss(rng)) * 100) / 100); }
+  return { x, y };
+})();
+
+// 200 个模拟西瓜（直方图演示）
+const MANY = (() => {
+  const rng = mulberry32(99);
+  const rows = [];
+  for (let i = 0; i < 200; i++) {
+    const good = i % 20 < 11 ? 1 : 0;
+    const s = clamp((good ? 0.27 : 0.15) + (good ? 0.085 : 0.075) * gauss(rng), 0.01, 0.49);
+    const d = clamp((good ? 0.56 : 0.44) + 0.12 * gauss(rng), 0.21, 0.79);
+    rows.push([Math.round(d * 1000) / 1000, Math.round(s * 1000) / 1000, good, rng()]);
+  }
+  return rows;
+})();
+
+/* ---------- drawing helpers ---------- */
+const rect = (x, y, w, h) => ({ x, y, w, h, r: x + w, b: y + h });
+function scale(d0, d1, r0, r1) {
+  const k = (r1 - r0) / (d1 - d0);
+  const f = v => r0 + (v - d0) * k;
+  f.inv = p => d0 + (p - r0) / k;
+  return f;
+}
+function ticks(a, b, n) {
+  const span = b - a, raw = span / Math.max(1, n);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const st = [1, 2, 2.5, 5, 10].map(k => k * mag).find(k => k >= raw) || raw;
+  const out = [];
+  for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9; v += st) out.push(Math.round(v / st) * st);
+  return out;
+}
+function line(ctx, x1, y1, x2, y2, col, lw = 1, dash) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+function text(ctx, s, x, y, font, col, align = 'left', base = 'alphabetic') {
+  ctx.font = font; ctx.fillStyle = col; ctx.textAlign = align; ctx.textBaseline = base; ctx.fillText(s, x, y);
+}
+function rr(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+}
+function arrow(ctx, x1, y1, x2, y2, col, lw = 1.6, head = 7) {
+  const a = Math.atan2(y2 - y1, x2 - x1), len = Math.hypot(x2 - x1, y2 - y1);
+  if (len < 1) return;
+  const hh = Math.min(head, len * 0.6);
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = lw; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(a) * hh * 0.8, y2 - Math.sin(a) * hh * 0.8); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hh * Math.cos(a - 0.42), y2 - hh * Math.sin(a - 0.42));
+  ctx.lineTo(x2 - hh * Math.cos(a + 0.42), y2 - hh * Math.sin(a + 0.42));
+  ctx.closePath(); ctx.fill();
+}
+// graph-paper plot area with axes
+function axes(ctx, R, sx, sy, o = {}) {
+  ctx.save();
+  ctx.fillStyle = C.plate2; ctx.fillRect(R.x, R.y, R.w, R.h);
+  ctx.lineWidth = 1;
+  for (const t of o.xt || []) { const x = Math.round(sx(t)) + 0.5; line(ctx, x, R.y, x, R.b, C.grid); }
+  for (const t of o.yt || []) { const y = Math.round(sy(t)) + 0.5; line(ctx, R.x, y, R.r, y, C.grid); }
+  if (o.zeroY !== undefined) { const y = Math.round(sy(o.zeroY)) + 0.5; line(ctx, R.x, y, R.r, y, C.faint); }
+  line(ctx, R.x, Math.round(R.b) + 0.5, R.r, Math.round(R.b) + 0.5, C.rule);
+  line(ctx, Math.round(R.x) + 0.5, R.y, Math.round(R.x) + 0.5, R.b, C.rule);
+  const xf = o.xf || (v => String(v)), yf = o.yf || (v => String(v));
+  if (o.xLabels !== false) for (const t of o.xt || []) text(ctx, xf(t), sx(t), R.b + 14, fMono(10), C.muted, 'center');
+  for (const t of o.yt || []) text(ctx, yf(t), R.x - 6, sy(t) + 3.5, fMono(10), C.muted, 'right');
+  if (o.xl) text(ctx, o.xl, R.r, R.b + (o.xLabels === false ? 14 : 28), fSans(11.5), C.muted, 'right');
+  if (o.yl) text(ctx, o.yl, R.x + 6, R.y + 14, fSans(11.5, 500), C.ink2, 'left');
+  ctx.restore();
+}
+function plotFn(ctx, f, x0, x1, sx, sy, n = 160) {
+  ctx.beginPath();
+  for (let k = 0; k <= n; k++) {
+    const x = x0 + ((x1 - x0) * k) / n, y = f(x);
+    const px = sx(x), py = sy(y);
+    if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+}
+// melon marker: good = circle, bad = square
+function melon(ctx, x, y, good, r = 4.6, alpha = 1, ring) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = good ? C.pos : C.neg;
+  ctx.strokeStyle = C.plate; ctx.lineWidth = 1.5;
+  if (good) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+  else { const s = r * 1.7; ctx.beginPath(); ctx.rect(x - s / 2, y - s / 2, s, s); ctx.fill(); ctx.stroke(); }
+  if (ring) { ctx.beginPath(); ctx.arc(x, y, r + 3.5, 0, Math.PI * 2); ctx.strokeStyle = ring; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+// shaded probability / score map over the melon feature space
+function shadeMap(ctx, R, sx, sy, valueAt, maxA = 0.34, scaleV = 3) {
+  const nx = 60, ny = 50;
+  const cw = R.w / nx, ch = R.h / ny;
+  for (let i = 0; i < nx; i++) {
+    for (let j = 0; j < ny; j++) {
+      const x = DOM[0][0] + ((i + 0.5) / nx) * (DOM[0][1] - DOM[0][0]);
+      const y = DOM[1][0] + ((j + 0.5) / ny) * (DOM[1][1] - DOM[1][0]);
+      const v = valueAt(x, y, i, j);
+      if (!v) continue;
+      const a = Math.min(1, Math.abs(v) / scaleV) * maxA;
+      ctx.fillStyle = A(v > 0 ? C.pos : C.neg, a);
+      ctx.fillRect(R.x + i * cw, R.b - (j + 1) * ch, cw + 0.6, ch + 0.6);
+    }
+  }
+}
+function melonAxes(ctx, R, o = {}) {
+  const sx = scale(DOM[0][0], DOM[0][1], R.x, R.r), sy = scale(DOM[1][0], DOM[1][1], R.b, R.y);
+  axes(ctx, R, sx, sy, Object.assign({ xt: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8], yt: [0, 0.1, 0.2, 0.3, 0.4, 0.5], xf: v => v.toFixed(1), yf: v => v.toFixed(1), xl: '密度 →', yl: '含糖率' }, o));
+  return { sx, sy };
+}
+// axis-aligned regions of every node of a tree (in data coordinates)
+function regions(root) {
+  const out = new Map();
+  (function walk(n, box) {
+    out.set(n, box);
+    if (!n.split) return;
+    const L = box.slice(), R = box.slice();
+    if (n.f === 0) { L[1] = Math.min(L[1], n.thr); R[0] = Math.max(R[0], n.thr); }
+    else { L[3] = Math.min(L[3], n.thr); R[2] = Math.max(R[2], n.thr); }
+    walk(n.left, L); walk(n.right, R);
+  })(root, [DOM[0][0], DOM[0][1], DOM[1][0], DOM[1][1]]);
+  return out;
+}
+function splitLine(ctx, n, box, sx, sy, p, col, lw) {
+  if (n.f === 0) { const x = sx(n.thr), y0 = sy(box[2]), y1 = sy(box[3]); line(ctx, x, y0, x, lerp(y0, y1, p), col, lw); }
+  else { const y = sy(n.thr), x0 = sx(box[0]), x1 = sx(box[1]); line(ctx, x0, y, lerp(x0, x1, p), y, col, lw); }
+}
+// ---- tree diagrams ----
+function treeLayout(root, internal) {
+  const pos = new Map();
+  let leaves = 0, depth = 0;
+  (function walk(n, d) {
+    depth = Math.max(depth, d);
+    if (!internal(n)) { pos.set(n, { u: leaves++, d }); return; }
+    walk(n.left, d + 1); walk(n.right, d + 1);
+    pos.set(n, { u: (pos.get(n.left).u + pos.get(n.right).u) / 2, d });
+  })(root, 0);
+  return { pos, leaves, depth };
+}
+const condText = n => `${FEAT[n.f]} < ${(Math.round(n.thr * 1e4) / 1e4).toFixed(4)}`;
+function drawTree(ctx, R, root, L, o = {}) {
+  const slot = R.w / Math.max(1, L.leaves);
+  const bw = Math.max(40, Math.min(o.maxW || 138, slot - 8));
+  const bh = o.bh || 42;
+  const vgap = L.depth > 0 ? Math.min(o.maxGap || 96, (R.h - bh) / L.depth) : 0;
+  const top = R.y + Math.max(0, (R.h - bh - vgap * L.depth) / 2);
+  const P = n => { const p = L.pos.get(n); return { x: R.x + (p.u + 0.5) * slot, y: top + p.d * vgap }; };
+  const alpha = o.alpha || (() => 1);
+  const internal = o.internal || (n => n.split);
+  const nodesList = [];
+  (function walk(n) { nodesList.push(n); if (L.pos.has(n.left) && internal(n)) { walk(n.left); walk(n.right); } })(root);
+  // edges
+  for (const n of nodesList) {
+    if (!internal(n)) continue;
+    const a = P(n);
+    for (const [c, lab] of [[n.left, '是'], [n.right, '否']]) {
+      const al = Math.min(alpha(n), alpha(c));
+      if (al <= 0.01) continue;
+      const b = P(c);
+      const onPath = o.path && o.path.has(n) && o.path.has(c);
+      ctx.globalAlpha = al;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y + bh);
+      ctx.bezierCurveTo(a.x, a.y + bh + vgap * 0.35, b.x, b.y - vgap * 0.35, b.x, b.y);
+      ctx.strokeStyle = onPath ? C.ink : C.faint; ctx.lineWidth = onPath ? 2.4 : 1.2; ctx.stroke();
+      if (!o.noEdgeLabels) {
+        const t = 0.34, mx = lerp(a.x, b.x, t * 0.9), my = lerp(a.y + bh, b.y, t) + 4;
+        text(ctx, lab, mx + (c === n.left ? -8 : 8), my, fSans(10.5), onPath ? C.ink : C.muted, 'center');
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+  // boxes
+  for (const n of nodesList) {
+    const al = alpha(n);
+    if (al <= 0.01) continue;
+    const p = P(n);
+    const x = p.x - bw / 2, y = p.y;
+    const lines = o.lines ? o.lines(n, bw) : [];
+    const leafNow = !internal(n);
+    const tone = o.tone ? o.tone(n) : null;
+    ctx.globalAlpha = al;
+    rr(ctx, x, y, bw, bh, 5);
+    ctx.fillStyle = tone ? A(tone, 0.13) : C.plate;
+    ctx.fill();
+    rr(ctx, x, y, bw, bh, 5);
+    const hi = o.hi === n || (o.path && o.path.has(n));
+    ctx.strokeStyle = hi ? C.ink : tone || (leafNow ? C.faint : C.rule);
+    ctx.lineWidth = hi ? 2 : 1;
+    ctx.setLineDash(leafNow && !tone ? [3, 3] : []);
+    ctx.stroke(); ctx.setLineDash([]);
+    const n2 = lines.length;
+    lines.forEach((ln, k) => {
+      const yy = y + bh / 2 + (k - (n2 - 1) / 2) * (o.lh || 15) + 4;
+      text(ctx, ln.t, p.x, yy, ln.f || fSans(12, 500), ln.c || C.ink, 'center');
+    });
+    ctx.globalAlpha = 1;
+    if (o.after) o.after(n, p, bw, bh);
+  }
+  return { P, bw, bh };
+}
+
+/* ---------- visibility, theme and font hooks ---------- */
+function watchFigure(fig, tl) {
+  if (!('IntersectionObserver' in window)) return;
+  new IntersectionObserver(es => {
+    for (const e of es) {
+      if (e.isIntersecting && e.intersectionRatio >= 0.4) tl.autoplay();
+      else if (!e.isIntersecting && tl.playing) tl.pause();
+    }
+  }, { threshold: [0, 0.4] }).observe(fig);
+}
+/* =====================================================================
+   图 1 · 每棵新树拟合上一轮的残差（回归）
+   ===================================================================== */
+function figBoost() {
+  const fig = document.getElementById('fig-boost');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? Math.round(w * 0.95 + 90) : Math.round(clamp(w * 0.54, 380, 480))));
+  const X = LOAD.x.map(v => [v]), Y = LOAD.y, N = Y.length, R = 40;
+  const P = { eta: 0.3, depth: 2 };
+  let base, rounds, mse;
+  const yLo = Math.floor(Math.min(...Y)) - 1, yHi = Math.ceil(Math.max(...Y)) + 2;
+  const rMax = Math.ceil(Math.max(...Y.map(y => Math.abs(y - mean(Y))))) + 1;
+
+  function steps(tree) { // 1-D step function of one tree: [{a, b, w}]
+    const cuts = [];
+    (function walk(n) { if (n.leaf) return; cuts.push(n.thr); walk(n.left); walk(n.right); })(tree.root);
+    cuts.sort((a, b) => a - b);
+    const bounds = [-0.25].concat(cuts, [23.75]);
+    const out = [];
+    for (let k = 0; k < bounds.length - 1; k++) {
+      const a = bounds[k], b = bounds[k + 1];
+      out.push({ a, b, w: tree.leafOf([(a + b) / 2]).w });
+    }
+    return { cuts, segs: out };
+  }
+  function train() {
+    base = mean(Y);
+    const hist = trainModel(X, Y, { eta: P.eta, lambda: 1, gamma: 0, maxDepth: P.depth, mcw: 1 }, R, 'squared', base);
+    rounds = hist.map(r => Object.assign({ before: r.before, after: r.after }, steps(r.tree)));
+    mse = [mean(Y.map(y => (y - base) ** 2))].concat(hist.map(r => mean(Y.map((y, i) => (y - r.after[i]) ** 2))));
+  }
+  function build() {
+    const S = [{ k: 'intro', dur: 900, hold: 1800, title: '起点。', text: `还没有任何树，所有时刻都预测成平均负荷 ȳ = ${fmt(base, 2)} GW，这就是 base_score。此时训练误差 MSE = ${fmt(mse[0], 2)}。` }];
+    for (let r = 0; r < R; r++) {
+      const n = r + 1;
+      if (r < 3) {
+        S.push({ k: 'resid', r, dur: 900, hold: 1500, title: `第 ${n} 棵树 · 算残差。`, text: r === 0 ? '每个点到预测线的竖直距离就是残差 r = y − ŷ（红线）。下半部分把残差单独画出来，它就是这棵树要拟合的目标。' : '预测线变了，残差也跟着变，整体比上一轮小。' });
+        S.push({ k: 'fit', r, dur: 1100, hold: 1700, title: `第 ${n} 棵树 · 拟合残差。`, text: `深度 ${P.depth} 的树把一天切成最多 ${2 ** P.depth} 段，每段输出 w = Σr / (n + λ)，也就是这一段残差的平均值，再往 0 收缩一点。` });
+        S.push({ k: 'add', r, dur: 1700, hold: 1800, title: `第 ${n} 棵树 · 乘 η 后加上去。`, text: `树的输出先乘 η = ${fmt(P.eta, 2)} 变矮，再加到预测线上。MSE 从 ${fmt(mse[r], 2)} 降到 ${fmt(mse[r + 1], 2)}。` });
+      } else {
+        S.push({ k: 'quick', r, dur: 520, hold: 170, title: `第 ${n} 棵树。`, text: `拟合残差、乘 η、加到预测上。MSE = ${fmt(mse[r + 1], 3)}。` });
+      }
+    }
+    const last = S[S.length - 1];
+    last.hold = 2600;
+    last.text = `${R} 棵树之后 MSE = ${fmt(mse[R], 3)}。每棵树都很粗糙，加起来却贴住了早晚两个用电高峰。剩下的误差主要是数据本身的噪声（这里噪声的方差约 0.5）。`;
+    return S;
+  }
+  function stepLine(ctx, sx, sy, vals) {
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) {
+      const a = sx(LOAD.x[i] - 0.25), b = sx(LOAD.x[i] + 0.25), y = sy(vals[i]);
+      if (i === 0) ctx.moveTo(a, y); else ctx.lineTo(a, y);
+      ctx.lineTo(b, y);
+    }
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const padL = 44, padR = 12, top = 10, bottom = 40, gap = 26;
+    const hA = Math.round((H - top - bottom - gap) * 0.58), hB = H - top - bottom - gap - hA;
+    const RA = rect(padL, top, W - padL - padR, hA), RB = rect(padL, top + hA + gap, W - padL - padR, hB);
+    const sx = scale(-0.5, 24, RA.x, RA.r);
+    const syA = scale(yLo, yHi, RA.b, RA.y), syB = scale(-rMax, rMax, RB.b, RB.y);
+    const xt = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+    axes(ctx, RA, sx, syA, { xt, yt: ticks(yLo, yHi, 4), xLabels: false, yl: '用电负荷 (GW)' });
+    axes(ctx, RB, sx, syB, { xt, yt: ticks(-rMax + 1, rMax - 1, 4), yf: v => fmt(v, 0), zeroY: 0, xl: '时刻 (h)', yl: '残差 y − ŷ 和新树的输出' });
+
+    let cur, resid = null, tree = null, treeK = 1, reveal = 1, lineK = 1, lossUpTo = 0, lossFrac = 0, showThr = false;
+    if (s.k === 'intro') { cur = Y.map(() => base); reveal = ease(p); }
+    else {
+      const R0 = rounds[s.r];
+      resid = R0.before; lossUpTo = s.r;
+      if (s.k === 'resid') { cur = R0.before; lineK = ease(p); }
+      else if (s.k === 'fit') { cur = R0.before; tree = R0; reveal = ease(p); showThr = true; }
+      else if (s.k === 'add') {
+        const a = ease(sub01(p, 0, 0.38)), b = ease(sub01(p, 0.45, 1));
+        treeK = 1 - (1 - P.eta) * a; tree = R0; showThr = true;
+        cur = lerpArr(R0.before, R0.after, b); lossFrac = b;
+      } else { const b = ease(p); tree = R0; treeK = P.eta; showThr = true; cur = lerpArr(R0.before, R0.after, b); lossFrac = b; }
+    }
+    // ---- panel A: data, prediction, residual lines
+    ctx.save(); ctx.beginPath(); ctx.rect(RA.x, RA.y, RA.w, RA.h); ctx.clip();
+    if (resid) {
+      for (let k = 0; k < N; k++) {
+        const x = sx(LOAD.x[k]) + 0.5, y0 = syA(cur[k]), y1 = syA(Y[k]);
+        line(ctx, x, y0, x, lerp(y0, y1, s.k === 'resid' ? lineK : 1), A(C.g, 0.8), 1.4);
+      }
+    }
+    ctx.save();
+    if (s.k === 'intro') { ctx.beginPath(); ctx.rect(RA.x, RA.y, RA.w * reveal, RA.h); ctx.clip(); }
+    stepLine(ctx, sx, syA, cur);
+    ctx.strokeStyle = C.pos; ctx.lineWidth = 2.4; ctx.stroke();
+    ctx.restore();
+    for (let k = 0; k < N; k++) { ctx.beginPath(); ctx.arc(sx(LOAD.x[k]), syA(Y[k]), 2.7, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill(); }
+    ctx.restore();
+    // loss inset (upper-left corner is empty: the night trough is low)
+    const narrowA = W < 560;
+    const iw = Math.min(210, RA.w * (narrowA ? 0.3 : 0.36)), ih = narrowA ? 36 : Math.min(70, RA.h * 0.34);
+    const IR = rect(RA.x + 12, RA.y + 42, iw, ih);
+    ctx.fillStyle = A(C.plate, 0.92); rr(ctx, IR.x - 6, IR.y - 16, IR.w + 12, IR.h + 24, 4); ctx.fill();
+    ctx.strokeStyle = C.rule; ctx.lineWidth = 1; rr(ctx, IR.x - 6, IR.y - 16, IR.w + 12, IR.h + 24, 4); ctx.stroke();
+    text(ctx, '训练 MSE', IR.x, IR.y - 4, fSans(10.5), C.muted);
+    const upto = lossUpTo + lossFrac;
+    const lx = scale(0, R, IR.x, IR.r), ly = scale(0, mse[0] * 1.05, IR.b, IR.y);
+    ctx.beginPath();
+    for (let k = 0; k <= Math.floor(upto); k++) { const x = lx(k), y = ly(mse[k]); if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    const fl = Math.floor(upto), fr = upto - fl;
+    if (fr > 0 && fl < R) ctx.lineTo(lx(fl + fr), ly(lerp(mse[fl], mse[fl + 1], fr)));
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5; ctx.stroke();
+    const cxL = fr > 0 && fl < R ? lx(fl + fr) : lx(fl), cyL = fr > 0 && fl < R ? ly(lerp(mse[fl], mse[fl + 1], fr)) : ly(mse[fl]);
+    ctx.beginPath(); ctx.arc(cxL, cyL, 3, 0, Math.PI * 2); ctx.fillStyle = C.g; ctx.fill();
+    text(ctx, fmt(fr > 0 && fl < R ? lerp(mse[fl], mse[fl + 1], fr) : mse[fl], 2), IR.r, IR.y - 4, fMono(10.5, 500), C.ink, 'right');
+    line(ctx, IR.x, IR.b + 0.5, IR.r, IR.b + 0.5, C.rule);
+
+    // ---- panel B: residuals + the new tree
+    ctx.save(); ctx.beginPath(); ctx.rect(RB.x, RB.y, RB.w, RB.h); ctx.clip();
+    if (resid) {
+      const al = s.k === 'resid' ? lineK : 1;
+      for (let k = 0; k < N; k++) {
+        ctx.beginPath(); ctx.arc(sx(LOAD.x[k]), syB(Y[k] - resid[k]), 2.8, 0, Math.PI * 2);
+        ctx.strokeStyle = A(C.g, al); ctx.lineWidth = 1.4; ctx.stroke();
+      }
+    }
+    if (tree) {
+      if (showThr) for (const c of tree.cuts) line(ctx, sx(c), RB.y, sx(c), RB.b, C.faint, 1, [3, 3]);
+      ctx.save(); ctx.beginPath(); ctx.rect(RB.x, RB.y, RB.w * (s.k === 'fit' ? reveal : 1), RB.h); ctx.clip();
+      const y0 = syB(0);
+      for (const sg of tree.segs) {
+        const x0 = sx(sg.a), x1 = sx(sg.b), y = syB(sg.w * treeK);
+        ctx.fillStyle = A(C.pos, 0.14); ctx.fillRect(x0, Math.min(y, y0), x1 - x0, Math.abs(y - y0));
+      }
+      ctx.beginPath();
+      tree.segs.forEach((sg, k) => { const y = syB(sg.w * treeK); if (k === 0) ctx.moveTo(sx(sg.a), y); else ctx.lineTo(sx(sg.a), y); ctx.lineTo(sx(sg.b), y); });
+      ctx.strokeStyle = C.pos; ctx.lineWidth = 2.4; ctx.stroke();
+      for (const sg of tree.segs) {
+        const x0 = sx(sg.a), x1 = sx(sg.b), v = sg.w * treeK;
+        if (x1 - x0 < 34) continue;
+        const y = syB(v);
+        text(ctx, fmtS(v, 1), (x0 + x1) / 2, v >= 0 ? y - 6 : y + 14, fMono(10.5, 500), C.pos, 'center');
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+    if (tree && s.k !== 'quick') {
+      const lbl = s.k === 'add' ? `× η = ${fmt(P.eta, 2)}` : `第 ${s.r + 1} 棵树 f(x)`;
+      text(ctx, lbl, RB.r - 6, RB.y + 14, fSans(11.5, 500), C.pos, 'right');
+    }
+  }
+  train();
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('boost-eta', v => fmt(v, 2), v => { P.eta = v; train(); tl.rebuild('end'); });
+  bindSeg('boost-depth', v => { P.depth = +v; train(); tl.rebuild('end'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 2 · 一棵树 = 结构 q + 叶子分数 w（静态）
+   ===================================================================== */
+function figObjTree() {
+  const fig = document.getElementById('fig-objtree');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? 330 : 300));
+  const T = buildTree(MX, G1, H1, DEMO);
+  const leaves = T.bfs.filter(n => n.leaf);
+  const L = treeLayout(T.root, n => !n.leaf);
+  const ws = leaves.map(n => n.w);
+  const sq = sum(ws.map(w => w * w));
+  $('#objtree-eq').innerHTML =
+    `这棵树 <i>T</i> = ${leaves.length}，叶子分数 <i>w</i> = (${ws.map(w => fmt(w, 3)).join(', ')})。` +
+    `取 <i>γ</i> = 0、<i>λ</i> = 1：Ω = <i>γ</i>·${leaves.length} + ½·<i>λ</i>·(${ws.map(w => fmt(Math.abs(w), 3) + '²').join(' + ')}) = <span class="num">${fmt(0.5 * sq, 3)}</span>`;
+  function draw() {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, H = st.h;
+    const R = rect(12, 34, W - 24, H - 34 - 78);
+    const narrow = W < 560;
+    text(ctx, 'q(x)：沿着“是 / 否”把每个瓜送进一片叶子', 14, 20, fSans(12.5, 500), C.ink2);
+    if (!narrow) text(ctx, `T = ${leaves.length} 片叶子`, W - 14, 20, fSans(12.5, 500), C.ink2, 'right');
+    const out = drawTree(ctx, R, T.root, L, {
+      internal: n => !n.leaf, maxW: 170, bh: 44,
+      tone: n => (n.leaf ? signCol(n.w) : null),
+      lines: (n, bw) => n.leaf
+        ? [{ t: `w = ${fmt(n.w, 3)}`, c: signCol(n.w), f: fSans(bw < 110 ? 11.5 : 13, 700) }, { t: `${n.idx.length} 个瓜`, c: C.muted, f: fSans(11) }]
+        : [{ t: condText(n), f: fSans(bw < 110 ? 11 : 12.5, 500) }, { t: `${n.idx.length} 个瓜`, c: C.muted, f: fSans(11) }],
+      after: (n, p, bw, bh) => {
+        if (!n.leaf) return;
+        const ids = n.idx, per = Math.max(3, Math.floor((bw + 8) / 15));
+        ids.forEach((id, k) => {
+          const row = Math.floor(k / per), col = k % per, cnt = Math.min(per, ids.length - row * per);
+          const x = p.x + (col - (cnt - 1) / 2) * 15, y = p.y + bh + 16 + row * 16;
+          melon(ctx, x, y, MY[id] === 1, 4.4);
+        });
+      },
+    });
+    if (out) text(ctx, '每片叶子下面是落进来的瓜（圆 = 好瓜，方 = 坏瓜）', 14, H - 10, fSans(11.5), C.muted);
+  }
+  st.onResize = draw;
+  ALL.push({ render: draw });
+  draw();
+}
+
+/* =====================================================================
+   图 3 · 用抛物线近似一个样本的损失
+   ===================================================================== */
+function figTaylor() {
+  const fig = document.getElementById('fig-taylor');
+  const cv = fig.querySelector('canvas');
+  const st = new Stage(cv, w => Math.round(clamp(w * 0.5, 300, 410)));
+  const S = { loss: 'log', y: 1, lam: 1, m: -1 };
+  const ETA = 0.3, JUMPS = 8;
+  const Lf = () => (S.loss === 'log' ? LOSS.logistic : LOSS.squared);
+  const dom = () => (S.loss === 'log' ? [-4, 4] : [S.y - 3, S.y + 3]);
+  const yMax = () => (S.loss === 'log' ? 4.4 : 4.9);
+  const at = m => { const L = Lf(); return { l: L.loss(S.y, m), g: L.grad(S.y, m), h: L.hess(S.y, m) }; };
+  const read = $('#taylor-read');
+  const mIn = document.getElementById('taylor-m');
+
+  function build() {
+    const isLog = S.loss === 'log';
+    return [
+      { dur: 700, hold: 1600, title: '一个样本的损失。', text: isLog ? `横轴是模型输出的 log-odds ŷ，纵轴是这个样本（y = ${S.y}）的对数损失。圆点是当前预测，可以左右拖动。` : `横轴是预测值 ŷ，纵轴是平方损失 ½(y − ŷ)²（y = ${S.y}）。圆点是当前预测，可以左右拖动。` },
+      { dur: 900, hold: 1700, title: '一阶导 g 是切线的斜率。', text: 'g < 0 表示把 ŷ 调大损失会下降，g > 0 表示该调小。只看斜率，还不知道该走多远。' },
+      { dur: 1300, hold: 1900, title: '二阶导 h 是弯曲程度。', text: isLog ? '把切线“掰弯”成抛物线 l + g·f + ½h·f²，它在当前点附近贴着真实曲线。h 越大，抛物线越陡。' : '平方损失本身就是抛物线，二阶展开和真实曲线完全重合，h 恒等于 1。' },
+      { dur: 1000, hold: 1900, title: '抛物线的最低点在 −g/h。', text: isLog ? '这就是牛顿法的一步。对数损失在 |ŷ| 较大时很平、h 很小，−g/h 会冲得很远。' : '最低点正好落在 y 上：对平方损失，牛顿法一步到位。' },
+      { dur: 1100, hold: 1900, title: '加上 λ，步子变小。', text: '正则项把抛物线变成 g·f + ½(h + λ)f²，更陡，最低点缩到 −g/(h + λ)。这就是叶子权重公式的单样本版本。' },
+      { dur: 2800, hold: 2400, title: `一轮一轮往前走（η = ${ETA}）。`, text: '假如一片叶子里只有这个样本，每一轮它的预测都会移动 η·(−g/(h + λ))，再在新位置重新展开。越接近最低点，步子越小。' },
+    ];
+  }
+  function readout() {
+    const { g, h } = at(S.m);
+    const isLog = S.loss === 'log';
+    const p = sigmoid(S.m);
+    const rows = [['当前预测 ŷ', fmt(S.m, 2)]];
+    if (isLog) rows.push(['p = σ(ŷ)', fmt(p, 3)]);
+    rows.push([isLog ? 'g = p − y' : 'g = ŷ − y', `<span class="cg">${fmt(g, 3)}</span>`]);
+    rows.push([isLog ? 'h = p(1 − p)' : 'h', `<span class="ch">${fmt(h, 3)}</span>`]);
+    rows.push(['−g / h', fmt(-g / h, 2)]);
+    rows.push(['−g / (h + λ)', fmt(-g / (h + S.lam), 2)]);
+    read.innerHTML = rows.map(([k, v]) => `<div><span class="k">${k}</span><span class="v">${v}</span></div>`).join('');
+  }
+  function draw(i, p) {
+    const ctx = st.ctx; st.clear();
+    const [d0, d1] = dom();
+    const R = rect(40, 12, st.w - 54, st.h - 12 - 40);
+    const sx = scale(d0, d1, R.x, R.r), sy = scale(-0.3, yMax(), R.b, R.y);
+    axes(ctx, R, sx, sy, { xt: ticks(d0, d1, 8), yt: [0, 1, 2, 3, 4], xl: S.loss === 'log' ? 'ŷ（log-odds）→' : 'ŷ →', yl: '损失 l(y, ŷ)', xf: v => fmt(v, 0) });
+    const L = Lf();
+    const { l, g, h } = at(S.m);
+    const m0 = S.m, x0 = sx(m0), y0 = sy(l);
+    ctx.save(); ctx.beginPath(); ctx.rect(R.x, R.y, R.w, R.h); ctx.clip();
+    // true loss
+    plotFn(ctx, v => L.loss(S.y, v), d0, d1, sx, sy); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.2; ctx.stroke();
+    if (S.loss === 'sq') line(ctx, sx(S.y), R.y, sx(S.y), R.b, C.faint, 1, [2, 4]);
+    // tangent
+    if (i >= 1) {
+      const k = i === 1 ? ease(p) : 1, ext = 1.7 * k;
+      plotFn(ctx, v => l + g * (v - m0), m0 - ext, m0 + ext, sx, sy, 2);
+      ctx.strokeStyle = C.g; ctx.lineWidth = 2; ctx.stroke();
+    }
+    // quadratic approximation (bends out of the tangent line)
+    const kq = i === 2 ? ease(p) : i > 2 ? 1 : 0;
+    if (i >= 2) {
+      plotFn(ctx, v => l + g * (v - m0) + 0.5 * h * kq * (v - m0) ** 2, d0, d1, sx, sy, 200);
+      ctx.strokeStyle = C.h; ctx.lineWidth = i >= 4 ? 1.4 : 2.2; ctx.setLineDash(i >= 4 ? [5, 4] : [7, 4]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    let kr = 0;
+    if (i >= 4) {
+      kr = i === 4 ? ease(p) : 1;
+      plotFn(ctx, v => l + g * (v - m0) + 0.5 * (h + S.lam * kr) * (v - m0) ** 2, d0, d1, sx, sy, 200);
+      ctx.strokeStyle = C.h; ctx.lineWidth = 2.4; ctx.stroke();
+    }
+    ctx.restore();
+    // minimum of the approximations + step arrows along the bottom
+    const ay = R.b - 12;
+    const stepMark = (f, q, k, col, lab, row) => {
+      const tx = m0 + f, inside = tx >= d0 && tx <= d1;
+      const ex = sx(clamp(tx, d0, d1));
+      const yy = ay - row * 18;
+      arrow(ctx, x0, yy, lerp(x0, ex, k), yy, col, 1.8, 7);
+      if (k >= 0.99) {
+        if (inside) {
+          const qy = sy(q);
+          if (qy > R.y && qy < R.b) { line(ctx, ex, qy, ex, yy, A(col, 0.55), 1, [2, 3]); ctx.beginPath(); ctx.arc(ex, qy, 4.2, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); }
+        }
+        const txt = lab + (inside ? '' : `（落在 ${fmt(tx, 1)}，超出画面）`);
+        const right = ex > x0;
+        text(ctx, txt, right ? Math.min(ex + 6, R.r - 4) : Math.max(ex - 6, R.x + 4), yy - 6, fSans(11.5, 500), col, right ? (ex + 6 > R.r - 120 ? 'right' : 'left') : (ex - 6 < R.x + 120 ? 'left' : 'right'));
+      }
+    };
+    if (i >= 3 && i < 5) {
+      const f = -g / h;
+      stepMark(f, l + g * f + 0.5 * h * f * f, i === 3 ? ease(p) : 1, i >= 4 ? C.muted : C.h, `−g/h = ${fmt(f, 2)}`, i >= 4 ? 1 : 0);
+    }
+    if (i >= 4) {
+      const hr = h + S.lam * kr, f = -g / hr;
+      stepMark(f, l + g * f + 0.5 * hr * f * f, i === 4 ? ease(p) : 1, C.h, `−g/(h+λ) = ${fmt(-g / (h + S.lam), 2)}`, 0);
+    }
+    // successive boosting steps
+    if (i === 5) {
+      const pts = [m0];
+      for (let k = 0; k < JUMPS; k++) { const q = at(pts[k]); pts.push(pts[k] + ETA * (-q.g / (q.h + S.lam))); }
+      const prog = ease(p) * JUMPS;
+      for (let k = 1; k <= JUMPS; k++) {
+        const u = clamp(prog - (k - 1), 0, 1);
+        if (u <= 0) break;
+        const mm = lerp(pts[k - 1], pts[k], u);
+        const px = sx(clamp(mm, d0, d1)), py = sy(L.loss(S.y, mm));
+        ctx.beginPath(); ctx.arc(px, py, 3.6, 0, Math.PI * 2);
+        ctx.fillStyle = A(C.pos, 0.35 + 0.65 * (k / JUMPS)); ctx.fill();
+        if (u >= 1 && k <= 3) text(ctx, String(k), px, py - 8, fMono(10, 500), C.pos, 'center');
+      }
+    }
+    // current point
+    if (i >= 1 && i < 5) {
+      text(ctx, `斜率 g = ${fmt(g, 3)}`, clamp(x0 + 10, R.x + 4, R.r - 110), clamp(y0 - 14, R.y + 30, R.b - 60), fSans(11.5, 500), C.g);
+      if (i >= 2) text(ctx, `h = ${fmt(h, 3)}`, clamp(x0 + 10, R.x + 4, R.r - 110), clamp(y0 + 2, R.y + 46, R.b - 44), fSans(11.5, 500), C.h);
+    }
+    ctx.beginPath(); ctx.arc(x0, y0, 6.5, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+    ctx.beginPath(); ctx.arc(x0, y0, 2.4, 0, Math.PI * 2); ctx.fillStyle = C.plate; ctx.fill();
+    line(ctx, x0, y0 + 7, x0, R.b, A(C.ink, 0.25), 1, [2, 3]);
+    readout();
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  // dragging the current prediction
+  let dragging = false;
+  const setFromEvent = e => {
+    const { x } = st.pointer(e);
+    const [d0, d1] = dom();
+    const R = rect(40, 12, st.w - 54, st.h - 52);
+    S.m = clamp(scale(d0, d1, R.x, R.r).inv(x), d0 + 0.15, d1 - 0.15);
+    mIn.value = S.m; mIn.parentElement.querySelector('output').textContent = fmt(S.m, 2);
+    tl.started = true; tl.render();
+  };
+  cv.addEventListener('pointerdown', e => { dragging = true; cv.setPointerCapture(e.pointerId); if (tl.playing && tl.stopAt === null) tl.pause(); setFromEvent(e); });
+  cv.addEventListener('pointermove', e => { if (dragging) setFromEvent(e); });
+  const end = () => { dragging = false; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  const syncRange = () => {
+    const [d0, d1] = dom();
+    mIn.min = String(d0 + 0.15); mIn.max = String(d1 - 0.15);
+    S.m = clamp(S.m, d0 + 0.15, d1 - 0.15); mIn.value = S.m;
+    mIn.parentElement.querySelector('output').textContent = fmt(S.m, 2);
+  };
+  bindSeg('taylor-loss', v => { S.loss = v; if (v === 'sq') S.m = S.y - 1.6; else S.m = S.y === 1 ? -1 : 1; syncRange(); tl.rebuild('keep'); });
+  bindSeg('taylor-y', v => { S.y = +v; if (S.loss === 'sq') S.m = S.y - 1.6; else S.m = S.y === 1 ? -1 : 1; syncRange(); tl.rebuild('keep'); });
+  bindRange('taylor-lam', v => fmt(v, 1), v => { S.lam = v; tl.render(); });
+  bindRange('taylor-m', v => fmt(v, 2), v => { S.m = v; tl.render(); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 4 · 样本落进叶子，叶子求和，抛物线的最低点就是 w*
+   ===================================================================== */
+function figLeaf() {
+  const fig = document.getElementById('fig-leaf');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? 560 : 480));
+  const S = { lam: 1 };
+  const T0 = buildTree(MX, G1, H1, DEMO);
+  const f = T0.root.f, thr = T0.root.thr;
+  const LEFT = ALLIDX.filter(i => MX[i][f] < thr), RIGHT = ALLIDX.filter(i => !(MX[i][f] < thr));
+  const sides = [LEFT, RIGHT];
+  const stats = idx => ({ G: sum(idx.map(i => G1[i])), H: sum(idx.map(i => H1[i])) });
+  const SL = stats(LEFT), SR = stats(RIGHT), S0 = stats(ALLIDX);
+  const eq = $('#leaf-eq');
+  const wStar = s => -s.G / (s.H + S.lam);
+  const score = s => -0.5 * (s.G * s.G) / (s.H + S.lam);
+
+  function build() {
+    const gain = score(S0) - score(SL) - score(SR);
+    return [
+      { k: 0, dur: 800, hold: 1800, title: '第一轮，17 个瓜都在根节点。', text: '初始预测都是 p = 0.5：好瓜（圆）g = 0.5 − 1 = −0.5，坏瓜（方）g = 0.5 − 0 = +0.5，所有瓜的 h = 0.5 × 0.5 = 0.25。' },
+      { k: 1, dur: 1500, hold: 1600, title: `按规则“${FEAT[f]} < ${thr.toFixed(4)}”把瓜送进两片叶子。`, text: `左边 ${LEFT.length} 个瓜，右边 ${RIGHT.length} 个瓜。这个结构先当作已知，第 5 章再讲它是怎么找到的。` },
+      { k: 2, dur: 1600, hold: 1800, title: '每片叶子把 g、h 加起来。', text: `左叶 G = ${fmt(SL.G, 2)}、H = ${fmt(SL.H, 2)}；右叶 G = ${fmt(SR.G, 2)}、H = ${fmt(SR.H, 2)}。叶子里的每个瓜都会得到同一个分数 w。` },
+      { k: 3, dur: 1300, hold: 1700, title: '每片叶子是一条关于 w 的抛物线。', text: '横轴是这片叶子要填的分数 w，纵轴是 G·w + ½(H + λ)·w²：目标函数里属于这片叶子的部分。' },
+      { k: 4, dur: 1000, hold: 2000, title: '最低点就是 w* = −G/(H + λ)。', text: `左叶 w* = ${fmt(wStar(SL), 3)}，往“坏瓜”方向推；右叶 w* = ${fmt(wStar(SR), 3)}，往“好瓜”方向推。拖动 λ 看看它们怎么向 0 收缩。` },
+      { k: 5, dur: 900, hold: 2000, title: '最低点的高度 −½G²/(H + λ) 加起来，就是这棵树的结构分数。', text: `Obj* = ${fmt(score(SL), 3)} + (${fmt(score(SR), 3)}) = ${fmt(score(SL) + score(SR), 3)}（γ = 0）。越低说明这种分法越好。` },
+      { k: 6, dur: 900, hold: 2400, title: '和“不切”比一比。', text: `如果根节点不切，分数是 −½·G²/(H + λ) = ${fmt(score(S0), 3)}。切开后下降了 ${fmt(gain, 3)}，这个差值就是下一章的 Gain。` },
+    ];
+  }
+  function eqHtml(k) {
+    const l = S.lam;
+    const n = v => `<span class="num">${v}</span>`;
+    if (k <= 2) return `左叶：<i class="cg">G</i> = Σ<i class="cg">g</i> = ${n(fmt(SL.G, 3))}，<i class="ch">H</i> = Σ<i class="ch">h</i> = ${n(fmt(SL.H, 3))}；右叶：<i class="cg">G</i> = ${n(fmt(SR.G, 3))}，<i class="ch">H</i> = ${n(fmt(SR.H, 3))}`;
+    if (k <= 4) return `<i>w</i><sub>左</sub>* = −${n(par(SL.G))}/(${n(fmt(SL.H))} + ${n(fmt(l, 1))}) = ${n(fmt(wStar(SL)))}；<i>w</i><sub>右</sub>* = −${n(par(SR.G))}/(${n(fmt(SR.H))} + ${n(fmt(l, 1))}) = ${n(fmt(wStar(SR)))}`;
+    if (k === 5) return `Obj* = −½ [ ${n(par(SL.G))}²/(${n(fmt(SL.H))} + ${n(fmt(l, 1))}) + ${n(par(SR.G))}²/(${n(fmt(SR.H))} + ${n(fmt(l, 1))}) ] = ${n(fmt(score(SL) + score(SR)))}`;
+    return `不切：−½·${n(par(S0.G))}²/(${n(fmt(S0.H))} + ${n(fmt(l, 1))}) = ${n(fmt(score(S0)))}；切开：${n(fmt(score(SL) + score(SR)))}；下降量 = ${n(fmt(score(S0) - score(SL) - score(SR)))} = Gain`;
+  }
+  function geo() {
+    const W = st.w;
+    const chip = 22;
+    const perRow = Math.max(6, Math.min(NM, Math.floor((W - 40) / chip)));
+    const rows = Math.ceil(NM / perRow);
+    const rootW = Math.min(W - 24, perRow * chip + 20), rootH = 30 + rows * chip;
+    const root = rect((W - rootW) / 2, 8, rootW, rootH);
+    const lw = (W - 12 * 3) / 2;
+    const leafTop = root.b + 50;
+    const perLeaf = Math.max(3, Math.floor((lw - 16) / chip));
+    const leafRows = Math.max(...sides.map(s => Math.ceil(s.length / perLeaf)));
+    const leafH = 28 + leafRows * chip + 42;
+    const leaves = [rect(12, leafTop, lw, leafH), rect(24 + lw, leafTop, lw, leafH)];
+    const plotTop = leafTop + leafH + 26;
+    const plots = leaves.map(b => rect(b.x + 30, plotTop, b.w - 40, st.h - plotTop - 28));
+    const rootPos = k => { const r = Math.floor(k / perRow), c = k % perRow, cnt = Math.min(perRow, NM - r * perRow); return { x: root.x + root.w / 2 + (c - (cnt - 1) / 2) * chip, y: root.y + 30 + r * chip + chip / 2 - 2 }; };
+    const leafPos = (s, k) => { const b = leaves[s], n = sides[s].length, r = Math.floor(k / perLeaf), c = k % perLeaf, cnt = Math.min(perLeaf, n - r * perLeaf); return { x: b.x + b.w / 2 + (c - (cnt - 1) / 2) * chip, y: b.y + 30 + r * chip + chip / 2 - 2 }; };
+    return { root, leaves, plots, rootPos, leafPos };
+  }
+  function chipAt(ctx, x, y, id, ring) {
+    melon(ctx, x, y, MY[id] === 1, 8.6, 1, ring);
+    text(ctx, String(id + 1), x, y + 3.4, fMono(9, 600), C.plate, 'center');
+  }
+  function draw(i, p) {
+    const ctx = st.ctx; st.clear();
+    const G = geo();
+    const k = i;
+    // root box
+    rr(ctx, G.root.x, G.root.y, G.root.w, G.root.h, 6); ctx.fillStyle = C.plate2; ctx.fill(); ctx.strokeStyle = C.rule; ctx.lineWidth = 1; ctx.stroke();
+    text(ctx, `根节点 · ${NM} 个瓜`, G.root.x + 10, G.root.y + 18, fSans(12, 500), C.ink2);
+    if (k >= 6) text(ctx, `不切的分数 ${fmt(score(S0), 3)}`, G.root.r - 10, G.root.y + 18, fMono(11, 500), C.ink, 'right');
+    else text(ctx, `G = ${fmt(S0.G, 2)}  H = ${fmt(S0.H, 2)}`, G.root.r - 10, G.root.y + 18, fMono(11), C.muted, 'right');
+    // edges + condition
+    const cx = st.w / 2, cy = G.root.b + 22;
+    ctx.globalAlpha = k >= 1 ? (k === 1 ? ease(sub01(p, 0, 0.3)) : 1) : 0.25;
+    text(ctx, `${FEAT[f]} < ${thr.toFixed(4)} ?`, cx, cy, fSans(12.5, 500), C.ink, 'center');
+    for (let s = 0; s < 2; s++) {
+      const b = G.leaves[s];
+      line(ctx, cx + (s ? 30 : -30), cy + 6, b.x + b.w / 2, b.y - 2, C.faint, 1.2);
+      text(ctx, s ? '否' : '是', lerp(cx, b.x + b.w / 2, 0.45) + (s ? 10 : -10), lerp(cy, b.y, 0.5) + 2, fSans(11), C.muted, 'center');
+    }
+    ctx.globalAlpha = 1;
+    // leaf boxes
+    const stat = [SL, SR];
+    for (let s = 0; s < 2; s++) {
+      const b = G.leaves[s];
+      rr(ctx, b.x, b.y, b.w, b.h, 6);
+      const w = wStar(stat[s]);
+      ctx.fillStyle = k >= 4 ? A(signCol(w), 0.08) : C.plate2; ctx.fill();
+      ctx.strokeStyle = k >= 4 ? signCol(w) : C.rule; ctx.lineWidth = 1; ctx.stroke();
+      text(ctx, s ? '右叶（否）' : '左叶（是）', b.x + 10, b.y + 18, fSans(12, 500), C.ink2);
+      const n = sides[s].length;
+      const c = k === 2 ? Math.floor(ease(p) * n + 1e-6) : k > 2 ? n : 0;
+      const Gs = sum(sides[s].slice(0, c).map(i2 => G1[i2])), Hs = sum(sides[s].slice(0, c).map(i2 => H1[i2]));
+      if (k >= 2) {
+        const yy = b.b - 14;
+        ctx.font = fMono(12, 500); ctx.textBaseline = 'alphabetic';
+        text(ctx, `G = ${fmtS(Gs, 2)}`, b.x + 12, yy, fMono(12, 500), C.g);
+        text(ctx, `H = ${fmt(Hs, 2)}`, b.x + 12 + 108, yy, fMono(12, 500), C.h);
+      }
+      if (k >= 4) text(ctx, `w* = ${fmt(w, 3)}`, b.r - 10, b.y + 18, fMono(12, 600), signCol(w), 'right');
+    }
+    // chips
+    const order = [];
+    ALLIDX.forEach(id => { const s = MX[id][f] < thr ? 0 : 1; order.push({ id, s, kk: sides[s].indexOf(id) }); });
+    order.forEach((o, n) => {
+      const a = G.rootPos(n), b = G.leafPos(o.s, o.kk);
+      let t = 0;
+      if (k === 1) t = ease(sub01(p, 0.15 + n * 0.02, 0.15 + n * 0.02 + 0.45));
+      else if (k > 1) t = 1;
+      const x = lerp(a.x, b.x, t), y = lerp(a.y, b.y, t) - Math.sin(t * Math.PI) * 16;
+      const counted = k > 2 || (k === 2 && o.kk < Math.floor(ease(p) * sides[o.s].length + 1e-6));
+      chipAt(ctx, x, y, o.id, counted && k === 2 ? (MY[o.id] ? C.pos : C.neg) : null);
+    });
+    // parabolas
+    if (k >= 3) {
+      const qs = stat.map(sd => ({ a: sd.G, b: sd.H + S.lam }));
+      const lo = Math.min(...qs.map(q => -0.5 * q.a * q.a / q.b)) - 0.35;
+      const hi = lo + 3.4;
+      for (let s = 0; s < 2; s++) {
+        const R = G.plots[s], q = qs[s];
+        const sx = scale(-2.2, 2.2, R.x, R.r), sy = scale(lo, hi, R.b, R.y);
+        axes(ctx, R, sx, sy, { xt: [-2, -1, 0, 1, 2], yt: ticks(Math.ceil(lo), Math.floor(hi), 3), xl: 'w →', xf: v => fmt(v, 0), yf: v => fmt(v, 0) });
+        line(ctx, sx(0) + 0.5, R.y, sx(0) + 0.5, R.b, C.faint);
+        line(ctx, R.x, sy(0) + 0.5, R.r, sy(0) + 0.5, C.faint);
+        ctx.save(); ctx.beginPath(); ctx.rect(R.x, R.y, (k === 3 ? ease(p) : 1) * R.w, R.h); ctx.clip();
+        plotFn(ctx, w => q.a * w + 0.5 * q.b * w * w, -2.2, 2.2, sx, sy, 120);
+        ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke();
+        ctx.restore();
+        text(ctx, `${fmtS(q.a, 2)}·w + ½·${fmt(q.b, 2)}·w²`, R.x + 6, R.y + 30, fMath(13, false), C.ink2);
+        if (k >= 4) {
+          const w = -q.a / q.b, v = -0.5 * q.a * q.a / q.b;
+          const kk = k === 4 ? ease(p) : 1;
+          const px = sx(w), py = sy(v);
+          ctx.globalAlpha = kk;
+          line(ctx, px, py, px, sy(0), A(signCol(w), 0.7), 1.2, [3, 3]);
+          ctx.beginPath(); ctx.arc(px, py, 5, 0, Math.PI * 2); ctx.fillStyle = signCol(w); ctx.fill();
+          text(ctx, `w* = ${fmt(w, 3)}`, px + (w < 0 ? 8 : -8), py + 16, fMono(11.5, 600), signCol(w), w < 0 ? 'left' : 'right');
+          if (k >= 5) text(ctx, `高度 ${fmt(v, 3)}`, px + (w < 0 ? 8 : -8), py + 30, fMono(11, 500), C.ink, w < 0 ? 'left' : 'right');
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+    eq.innerHTML = eqHtml(k);
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('leaf-lam', v => fmt(v, 1), v => { S.lam = v; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+/* =====================================================================
+   图 5 · 在根节点上扫描两个特征的所有切分点
+   ===================================================================== */
+function figScan() {
+  const fig = document.getElementById('fig-scan');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? 440 : 430));
+  const S = { round: 0, mcw: 0.5 };
+  const hist = trainModel(MX, MY, DEMO, 2, 'logistic', 0);
+  const eq = $('#scan-eq');
+  let g, h, G, H, scans, best, gLo, gHi;
+  function compute() {
+    g = hist[S.round].g; h = hist[S.round].h; G = sum(g); H = sum(h);
+    const P = Object.assign({}, DEMO, { mcw: S.mcw });
+    scans = [0, 1].map(f => {
+      const s = scanFeature(MX, g, h, ALLIDX, f, P, G, H, false);
+      return { f, order: s.present, cands: s.passes[0].slice().sort((a, b) => a.k - b.k), best: s.best };
+    });
+    best = null;
+    for (const sc of scans) if (sc.best && (!best || sc.best.lossChg > best.c.lossChg)) best = { f: sc.f, c: sc.best };
+    const gs = scans.flatMap(sc => sc.cands.filter(c => c.valid).map(c => c.gain));
+    gHi = Math.max(0.3, ...gs) * 1.18; gLo = Math.min(0, ...gs);
+    gLo = gLo < 0 ? gLo * 1.25 : -gHi * 0.08;
+  }
+  function build() {
+    const segs = [];
+    segs.push({ k: 'intro', dur: 600, hold: 1800, title: S.round === 0 ? '根节点里的 17 个瓜。' : '第 2 棵树的根节点。', text: S.round === 0 ? '每个瓜带着自己的 g（上排柱子，向上为正）和 h（下排柱子）。第一轮所有瓜 |g| = 0.5、h = 0.25。' : '第一棵树之后，每个瓜的 g、h 都不一样了：已经分对的瓜 |g| 变小，h 也略有不同。' });
+    for (const sc of scans) {
+      const nm = FEAT[sc.f];
+      segs.push({ k: 'sort', f: sc.f, dur: 1300, hold: 900, title: `按${nm}从小到大排序。`, text: '排好序后，任何切分都是“左边一段 + 右边一段”，只要从左往右扫一遍。' });
+      sc.cands.forEach((c, j) => segs.push({ k: 'cur', f: sc.f, j, dur: 320, hold: 240, title: `${nm} < ${c.thr.toFixed(4)}：`, text: c.valid ? `左边 ${c.k} 个瓜，右边 ${NM - c.k} 个，Gain = ${fmt(c.gain, 3)}。` : `左边 ${c.k} 个瓜。有一侧的 H 小于 min_child_weight = ${fmt(S.mcw, 2)}，这个位置不能切。` }));
+      segs.push({ k: 'best', f: sc.f, dur: 700, hold: 1900, title: `${nm}上最好的切分：`, text: sc.best ? `${nm} < ${sc.best.thr.toFixed(4)}，Gain = ${fmt(sc.best.gain, 3)}。` : '没有可以切的位置。' });
+    }
+    const other = best ? scans[1 - best.f].best : null;
+    segs.push({ k: 'final', dur: 800, hold: 2800, title: '两个特征比一比。', text: best ? `${FEAT[best.f]} < ${best.c.thr.toFixed(4)} 的 Gain（${fmt(best.c.gain, 3)}）${other ? `比${FEAT[1 - best.f]}上最好的（${fmt(other.gain, 3)}）大` : '是唯一可行的切分'}，所以这个节点就这样切。接下来对左右两个孩子重复同样的扫描。` : '没有任何能让目标函数下降的切分，这个节点直接当叶子。' });
+    return segs;
+  }
+  function eqHtml(s) {
+    const n = v => `<span class="num">${v}</span>`;
+    const full = c => `Gain = ½ [ ${n(par(c.GL))}²/(${n(fmt(c.HL))} + 1) + ${n(par(c.GR))}²/(${n(fmt(c.HR))} + 1) − ${n(par(G))}²/(${n(fmt(H))} + 1) ] − 0 = ${n('<b>' + fmt(c.gain) + '</b>')}`;
+    if (s.k === 'cur') {
+      const c = scans[s.f].cands[s.j];
+      return c.valid ? full(c) : `<i class="ch">H</i><sub>L</sub> = ${n(fmt(c.HL))}，<i class="ch">H</i><sub>R</sub> = ${n(fmt(c.HR))}：有一侧小于 min_child_weight = ${n(fmt(S.mcw, 2))}，跳过`;
+    }
+    if (s.k === 'best' && scans[s.f].best) return full(scans[s.f].best);
+    if (s.k === 'final' && best) return full(best.c);
+    return `节点合计：<i class="cg">G</i> = ${n(fmt(G))}，<i class="ch">H</i> = ${n(fmt(H))}，λ = 1，γ = 0。每个切分位置代入 Gain = ½ [ <i class="cg">G<sub>L</sub></i>²/(<i class="ch">H<sub>L</sub></i>+λ) + <i class="cg">G<sub>R</sub></i>²/(<i class="ch">H<sub>R</sub></i>+λ) − <i class="cg">G</i>²/(<i class="ch">H</i>+λ) ] − γ`;
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, Ht = st.h;
+    const padL = 30, padR = 12;
+    const cw = (W - padL - padR) / NM;
+    const colX = k => padL + (k + 0.5) * cw;
+    const gapX = k => padL + k * cw;
+    // column order (position of each sample) for the current state
+    const rank = f => { const r = new Array(NM); scans[f].order.forEach((id, k) => { r[id] = k; }); return r; };
+    const idOrder = ALLIDX.slice();
+    let from = idOrder, to = idOrder, tt = 1, f = -1;
+    if (s.k !== 'intro') f = s.f !== undefined ? s.f : (best ? best.f : 1);
+    if (s.k === 'sort') { from = s.f === 0 ? idOrder : rank(0); to = rank(s.f); tt = p; }
+    else if (f >= 0) { from = to = rank(f); }
+    const posOf = id => {
+      const t = ease(sub01(tt, (id % 6) * 0.05, (id % 6) * 0.05 + 0.7));
+      return colX(lerp(from[id], to[id], t));
+    };
+    // header
+    const title = f < 0 ? '样本（按编号）' : `特征：${FEAT[f]}（从小到大）`;
+    text(ctx, title, padL, 18, fSans(13, 700), C.ink);
+    text(ctx, `G = ${fmt(G, 3)}   H = ${fmt(H, 3)}`, W - padR, 18, fMono(11), C.muted, 'right');
+    // cursor state
+    let cur = null, curX = null, upto = -1;
+    const sc = f >= 0 ? scans[f] : null;
+    if (s.k === 'cur') {
+      cur = sc.cands[s.j];
+      const prevX = s.j > 0 ? gapX(sc.cands[s.j - 1].k) : padL;
+      curX = lerp(prevX, gapX(cur.k), ease(p));
+      upto = p > 0.55 ? s.j : s.j - 1;
+    } else if (s.k === 'best' || s.k === 'final') {
+      upto = sc.cands.length - 1;
+      const b = s.k === 'final' ? (best ? best.c : null) : sc.best;
+      if (b) { cur = b; curX = gapX(b.k); }
+    }
+    const zTop = 30, gBase = 124, hBase = 178;
+    if (curX !== null) {
+      ctx.fillStyle = A(C.ink, 0.05); ctx.fillRect(padL, zTop, curX - padL, hBase + 6 - zTop);
+      text(ctx, '左', padL + 4, zTop + 12, fSans(10.5, 500), C.muted);
+      text(ctx, '右', W - padR - 4, zTop + 12, fSans(10.5, 500), C.muted, 'right');
+    }
+    // row labels
+    text(ctx, 'g', 12, gBase + 4, fMath(15), C.g, 'center');
+    text(ctx, 'h', 12, hBase - 4, fMath(15), C.h, 'center');
+    line(ctx, padL, gBase + 0.5, W - padR, gBase + 0.5, C.rule);
+    line(ctx, padL, hBase + 0.5, W - padR, hBase + 0.5, C.rule);
+    const gS = 30 / 0.6, hS = 20 / 0.25;
+    for (const id of ALLIDX) {
+      const x = posOf(id);
+      melon(ctx, x, 44, MY[id] === 1, 5);
+      if (cw >= 19) text(ctx, String(id + 1), x, 64, fMono(9.5), C.muted, 'center');
+      if (f >= 0 && cw >= 33) text(ctx, MX[id][f].toFixed(3).replace(/^0/, ''), x, 78, fMono(9.5), C.ink2, 'center');
+      const bw = Math.max(3, Math.min(12, cw * 0.45));
+      const gv = g[id] * gS;
+      ctx.fillStyle = C.g; ctx.fillRect(x - bw / 2, gv > 0 ? gBase - gv : gBase, bw, Math.abs(gv));
+      const hv = h[id] * hS;
+      ctx.fillStyle = C.h; ctx.fillRect(x - bw / 2, hBase - hv, bw, hv);
+    }
+    // gain chart
+    const R = rect(padL, 238, W - padL - padR, Ht - 238 - 20);
+    const sy = scale(gLo, gHi, R.b, R.y);
+    ctx.fillStyle = C.plate2; ctx.fillRect(R.x, R.y, R.w, R.h);
+    for (const t of ticks(Math.max(0, gLo), gHi, 3)) { const y = Math.round(sy(t)) + 0.5; line(ctx, R.x, y, R.r, y, C.grid); text(ctx, fmt(t, 1), R.x - 5, y + 3.5, fMono(9.5), C.muted, 'right'); }
+    line(ctx, R.x, Math.round(sy(0)) + 0.5, R.r, Math.round(sy(0)) + 0.5, C.faint);
+    text(ctx, 'Gain', R.x + 6, R.y + 14, fSans(11.5, 500), C.ink2);
+    // reference: best of the first feature while scanning the second
+    if (f === 1 && scans[0].best && s.k !== 'intro') {
+      const y = sy(scans[0].best.gain);
+      line(ctx, R.x, y, R.r, y, C.muted, 1, [4, 4]);
+      text(ctx, `${FEAT[0]}上最好：${fmt(scans[0].best.gain, 3)}`, R.r - 4, y - 5, fSans(10.5), C.muted, 'right');
+    }
+    if (sc && upto >= 0) {
+      ctx.beginPath();
+      let started = false;
+      for (let j = 0; j <= upto; j++) {
+        const c = sc.cands[j];
+        if (!c.valid) { started = false; continue; }
+        const x = gapX(c.k), y = sy(c.gain);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = C.ink2; ctx.lineWidth = 1.4; ctx.stroke();
+      let bestSoFar = null;
+      for (let j = 0; j <= upto; j++) {
+        const c = sc.cands[j], x = gapX(c.k);
+        if (!c.valid) { const y = sy(0); line(ctx, x - 3.5, y - 3.5, x + 3.5, y + 3.5, C.faint, 1.4); line(ctx, x - 3.5, y + 3.5, x + 3.5, y - 3.5, C.faint, 1.4); continue; }
+        ctx.beginPath(); ctx.arc(x, sy(c.gain), 3.2, 0, Math.PI * 2); ctx.fillStyle = C.ink2; ctx.fill();
+        if (c.lossChg > 1e-6 && (!bestSoFar || c.lossChg > bestSoFar.lossChg)) bestSoFar = c;
+      }
+      if (bestSoFar) {
+        const x = gapX(bestSoFar.k), y = sy(bestSoFar.gain);
+        ctx.fillStyle = A(C.mark, 0.55); ctx.fillRect(x - 9, R.y, 18, R.h);
+        ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.8; ctx.stroke();
+        const lab = `${s.k === 'cur' ? '目前最好' : '最好'} ${fmt(bestSoFar.gain, 3)}`;
+        text(ctx, lab, clamp(x, R.x + 44, R.r - 44), Math.max(R.y + 28, y - 11), fSans(11, 700), C.ink, 'center');
+      }
+    }
+    // cursor + tallies
+    if (curX !== null && cur) {
+      line(ctx, curX, zTop - 2, curX, R.b, C.ink, 1.6);
+      const L1 = `左：G = ${fmtS(cur.GL, 3)}  H = ${fmt(cur.HL, 3)}`, R1 = `右：G = ${fmtS(cur.GR, 3)}  H = ${fmt(cur.HR, 3)}`;
+      if (W >= 600) text(ctx, `${L1}      ${R1}`, W / 2, 212, fMono(11.5, 500), C.ink, 'center');
+      else { text(ctx, L1, W / 2, 202, fMono(11, 500), C.ink, 'center'); text(ctx, R1, W / 2, 218, fMono(11, 500), C.ink, 'center'); }
+    }
+    eq.innerHTML = eqHtml(s);
+  }
+  compute();
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindSeg('scan-round', v => { S.round = +v; compute(); tl.rebuild('start'); tl.play(); });
+  bindRange('scan-mcw', v => fmt(v, 2), v => { S.mcw = v; compute(); tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 6 · 第一棵树的生长过程
+   ===================================================================== */
+function figGrow() {
+  const fig = document.getElementById('fig-grow');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 720 ? Math.round(w * 0.74) + 300 : Math.round(clamp(w * 0.47, 380, 440))));
+  const S = { lam: 1, gamma: 0, mcw: 0.5, depth: 3 };
+  let T, boxes, L, ev, pruneIdx, weightIdx;
+  function compute() {
+    T = buildTree(MX, G1, H1, { eta: 0.3, lambda: S.lam, gamma: S.gamma, maxDepth: S.depth, mcw: S.mcw });
+    boxes = regions(T.root);
+    L = treeLayout(T.root, n => n.split);
+  }
+  const why = n => ({
+    depth: `深度已到 max_depth = ${S.depth}。`,
+    mcw: `任何切分都会让某一侧的 H 小于 min_child_weight = ${fmt(S.mcw, 2)}。`,
+    gain: '所有能切的位置都不能让目标函数下降（½[…] ≤ 0）。',
+    single: '只剩 1 个瓜。',
+  })[n.why] || '';
+  function build() {
+    const segs = [{ k: 'root', dur: 700, hold: 1600, title: '根节点。', text: `17 个瓜，G = ${fmt(T.root.G, 3)}，H = ${fmt(T.root.H, 3)}。先在这里找最好的切分。` }];
+    ev = new Map();
+    for (const n of T.bfs) {
+      ev.set(n, segs.length);
+      if (n.split) segs.push({ k: 'split', n, dur: 1100, hold: 1700, title: `节点 ${n.bid}（${n.idx.length} 个瓜）：`, text: `两个特征都扫一遍，最好的切分是 ${condText(n)}，Gain = ${fmt(n.gain, 3)}${S.gamma > 0 ? `（½[…] = ${fmt(0.5 * n.lossChg, 3)}，减去 γ = ${fmt(S.gamma, 1)}）` : ''}。` });
+      else segs.push({ k: 'leaf', n, dur: 600, hold: 1500, title: `节点 ${n.bid}（${n.idx.length} 个瓜）：`, text: `不再切，成为叶子。${why(n)}` });
+    }
+    const pr = T.nodes.filter(n => n.pruned).sort((a, b) => b.depth - a.depth);
+    pruneIdx = -1;
+    if (pr.length) {
+      pruneIdx = segs.length;
+      segs.push({ k: 'prune', dur: 1300, hold: 2400, title: `γ = ${fmt(S.gamma, 1)}，自底向上剪枝：`, text: pr.map(n => `节点 ${n.bid} 的 Gain = ${fmt(n.gain, 3)} < 0，剪掉它下面的切分`).join('；') + '。' });
+    }
+    const leaves = T.nodes.filter(n => n.leaf && !n.removed);
+    weightIdx = segs.length;
+    segs.push({ k: 'weights', dur: 1100, hold: 2800, title: '所有叶子取 w* = −G/(H + λ)。', text: `这棵树有 ${leaves.length} 片叶子，分数是 ${leaves.map(n => fmt(n.w, 3)).join('、')}。颜色越深，分数的绝对值越大。` });
+    return segs;
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, Hh = st.h, wide = W >= 720;
+    const R1 = wide ? rect(44, 12, Math.round(W * 0.43), Hh - 12 - 42) : rect(44, 12, W - 56, Math.round(W * 0.74) - 30);
+    const R2 = wide ? rect(R1.r + 28, 16, W - R1.r - 28 - 10, Hh - 32) : rect(10, R1.b + 46, W - 20, Hh - R1.b - 56);
+    const { sx, sy } = melonAxes(ctx, R1);
+    const at = n => ev.get(n);
+    const pruneK = pruneIdx < 0 ? 0 : i > pruneIdx ? 1 : i === pruneIdx ? ease(p) : 0;
+    const wK = i > weightIdx ? 1 : i === weightIdx ? ease(p) : 0;
+    const cur = s.n || (s.k === 'root' ? T.root : null);
+    // leaf scores
+    if (wK > 0) {
+      const wmax = Math.max(0.3, ...T.nodes.filter(n => n.leaf && !n.removed).map(n => Math.abs(n.w)));
+      ctx.save(); ctx.globalAlpha = wK;
+      shadeMap(ctx, R1, sx, sy, (x, y) => T.leafOf([x, y]).w, 0.36, wmax);
+      ctx.restore();
+    }
+    // current node region
+    if (cur && cur !== T.root && s.k !== 'weights' && s.k !== 'prune') {
+      const b = boxes.get(cur);
+      const x0 = sx(b[0]), x1 = sx(b[1]), y0 = sy(b[3]), y1 = sy(b[2]);
+      ctx.fillStyle = A(C.mark, 0.28); ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+      ctx.strokeStyle = C.ink2; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]); ctx.strokeRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2); ctx.setLineDash([]);
+    }
+    // split lines
+    for (const n of T.bfs) {
+      if (!n.split || i < at(n)) continue;
+      let a = 1;
+      if (n.removed || n.pruned) a = 1 - pruneK;
+      if (a <= 0.01) continue;
+      ctx.globalAlpha = a;
+      splitLine(ctx, n, boxes.get(n), sx, sy, i === at(n) ? ease(p) : 1, C.ink, 2);
+      ctx.globalAlpha = 1;
+    }
+    for (const id of ALLIDX) melon(ctx, sx(MX[id][0]), sy(MX[id][1]), MY[id] === 1, 4.6);
+    if (wK > 0.4) {
+      ctx.globalAlpha = sub01(wK, 0.4, 1);
+      for (const n of T.nodes) {
+        if (!n.leaf || n.removed) continue;
+        const b = boxes.get(n);
+        const cx = sx((b[0] + b[1]) / 2), cy = sy((b[2] + b[3]) / 2);
+        const lab = fmt(n.w, 2);
+        ctx.font = fMono(11, 600);
+        const tw = ctx.measureText(lab).width;
+        ctx.fillStyle = A(C.plate, 0.85); rr(ctx, cx - tw / 2 - 4, cy - 11, tw + 8, 16, 3); ctx.fill();
+        text(ctx, lab, cx, cy + 1.5, fMono(11, 600), signCol(n.w), 'center');
+      }
+      ctx.globalAlpha = 1;
+    }
+    // tree diagram
+    const internal = n => n.split && i >= at(n) && !(n.pruned && pruneK >= 0.5);
+    const alpha = n => {
+      let a = 1;
+      if (n.parent) { const e = at(n.parent); a = i > e ? 1 : i === e ? ease(sub01(p, 0.3, 1)) : 0; }
+      if (n.removed) a *= 1 - pruneK;
+      return a;
+    };
+    const small = R2.w / Math.max(1, L.leaves) < 100;
+    drawTree(ctx, R2, T.root, L, {
+      internal, alpha, hi: cur, maxW: 132, bh: small ? 36 : 42, lh: small ? 13 : 15,
+      tone: n => (!internal(n) && wK > 0 && (i >= at(n) || n.pruned) ? signCol(n.w) : null),
+      lines: n => {
+        const fs = small ? 10.5 : 12;
+        if (internal(n)) return [{ t: condText(n), f: fSans(fs, 500) }, { t: `Gain ${fmt(n.gain, 3)}`, c: n.gain < 0 ? C.neg : C.muted, f: fMono(small ? 9.5 : 10.5) }];
+        const decided = i > at(n) || (i === at(n) && s.k === 'leaf') || (n.pruned && pruneK >= 0.5);
+        if (decided && wK > 0) return [{ t: `w* ${fmt(n.w, 3)}`, c: signCol(n.w), f: fMono(small ? 10.5 : 12, 600) }, { t: `G ${fmt(n.G, 2)} H ${fmt(n.H, 2)}`, c: C.muted, f: fMono(small ? 9 : 10) }];
+        return [{ t: decided ? '叶子' : `${n.idx.length} 个瓜`, f: fSans(fs, 500), c: decided ? C.ink2 : C.ink }, { t: `G ${fmt(n.G, 2)} H ${fmt(n.H, 2)}`, c: C.muted, f: fMono(small ? 9 : 10) }];
+      },
+    });
+  }
+  compute();
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  const re = () => { compute(); tl.rebuild('end'); };
+  bindRange('grow-lam', v => fmt(v, 1), v => { S.lam = v; re(); });
+  bindRange('grow-gam', v => fmt(v, 1), v => { S.gamma = v; re(); });
+  bindRange('grow-mcw', v => fmt(v, 2), v => { S.mcw = v; re(); });
+  bindSeg('grow-depth', v => { S.depth = +v; re(); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 7 · 完整的训练循环
+   ===================================================================== */
+function figLoop() {
+  const fig = document.getElementById('fig-loop');
+  const st = new Stage(fig.querySelector('canvas'), w => Math.round(w * 0.74) + 150);
+  const S = { eta: 0.3 };
+  const R = 20, DETAIL = 3, NX = 60, NY = 50;
+  const phases = [...fig.querySelectorAll('.phase')];
+  const table = document.getElementById('loop-table');
+  const cells = [];
+  for (let i = 0; i < NX; i++) for (let j = 0; j < NY; j++) cells.push([DOM[0][0] + ((i + 0.5) / NX) * (DOM[0][1] - DOM[0][0]), DOM[1][0] + ((j + 0.5) / NY) * (DOM[1][1] - DOM[1][0])]);
+  let hist, grids, loss;
+  function compute() {
+    hist = trainModel(MX, MY, Object.assign({}, DEMO, { eta: S.eta }), R, 'logistic', 0);
+    grids = [new Float32Array(NX * NY)];
+    hist.forEach((r, t) => {
+      const a = grids[t], b = new Float32Array(NX * NY);
+      for (let c = 0; c < NX * NY; c++) b[c] = a[c] + S.eta * r.tree.leafOf(cells[c]).w;
+      grids.push(b);
+    });
+    loss = [Math.log(2)].concat(hist.map(r => r.loss));
+  }
+  // sample table
+  table.innerHTML = '<thead><tr><th>#</th><th>密度</th><th>含糖率</th><th>好瓜</th><th>ŷ</th><th>p</th><th>g</th><th>h</th></tr></thead><tbody>' +
+    ALLIDX.map(i => `<tr><td>${i + 1}</td><td>${MX[i][0].toFixed(3)}</td><td>${MX[i][1].toFixed(3)}</td><td><span class="dot${MY[i] ? '' : ' sq'}" style="background:var(--${MY[i] ? 'pos' : 'neg'})"></span></td><td></td><td></td><td class="bar"><i></i><span></span></td><td class="bar"><i></i><span></span></td></tr>`).join('') + '</tbody>';
+  const rows = [...table.querySelectorAll('tbody tr')].map(tr => {
+    const td = tr.children;
+    return { tr, m: td[4], p: td[5], gi: td[6].firstChild, gs: td[6].lastChild, hi: td[7].firstChild, hs: td[7].lastChild };
+  });
+  function fillTable(m, g, h) {
+    rows.forEach((r, i) => {
+      const pr = sigmoid(m[i]);
+      r.m.textContent = fmt(m[i], 3);
+      r.p.textContent = fmt(pr, 3);
+      r.p.style.color = Math.abs(m[i]) > 1e-9 && (m[i] > 0) !== (MY[i] === 1) ? 'var(--g)' : '';
+      if (g) {
+        r.gs.textContent = fmt(g[i], 3);
+        const wv = Math.min(1, Math.abs(g[i])) * 50;
+        r.gi.style.cssText = `left:${g[i] < 0 ? 50 - wv : 50}%;width:${wv}%;background:var(--g)`;
+        r.hs.textContent = fmt(h[i], 3);
+        r.hi.style.cssText = `left:0;width:${Math.min(1, h[i] / 0.25) * 100}%;background:var(--h)`;
+      } else { r.gs.textContent = '—'; r.hs.textContent = '—'; r.gi.style.cssText = ''; r.hi.style.cssText = ''; }
+    });
+  }
+  const treeDesc = t => t.bfs.filter(n => !n.leaf).map(n => `${n.bid === 0 ? '根' : '节点 ' + n.bid}：${condText(n)}`).join('；');
+  function build() {
+    const segs = [];
+    for (let r = 0; r < R; r++) {
+      const n = r + 1, T = hist[r].tree;
+      if (r < DETAIL) {
+        segs.push({ k: 'gh', r, ph: 0, dur: 900, hold: 1500, title: `第 ${n} 轮 · ① 算 g、h。`, text: r === 0 ? '所有瓜的预测都是 ŷ = 0（p = 0.5）。好瓜 g = −0.5，坏瓜 g = +0.5，h 都是 0.25。' : '用上一轮更新后的预测重新算 g、h。看表格：分对的瓜 |g| 变小了，h 也在变小。' });
+        segs.push({ k: 'tree', r, ph: 1, dur: 1200, hold: 1700, title: `第 ${n} 轮 · ② 用 g、h 长一棵树。`, text: `按第 5–6 章的方法贪心分裂：${treeDesc(T)}。` });
+        segs.push({ k: 'w', r, ph: 2, dur: 800, hold: 1700, title: `第 ${n} 轮 · ③ 叶子取 w*。`, text: `每片叶子 w* = −G/(H + λ)。图中标的是乘过 η = ${fmt(S.eta, 2)} 以后、真正加到预测上的值。` });
+        segs.push({ k: 'upd', r, ph: 3, dur: 1400, hold: 1900, title: `第 ${n} 轮 · ④ 更新预测。`, text: `每个瓜的 ŷ 加上所在叶子的 η·w*，背景的概率图随之变化。训练集 logloss 从 ${fmt(loss[r], 3)} 降到 ${fmt(loss[r + 1], 3)}。` });
+      } else {
+        segs.push({ k: 'quick', r, ph: -1, dur: 620, hold: 220, title: `第 ${n} 轮。`, text: `算 g、h → 长树 → 叶子取 w* → 更新预测。logloss = ${fmt(loss[r + 1], 3)}。` });
+      }
+    }
+    const fin = hist[R - 1].after;
+    const wrong = ALLIDX.filter(i => (fin[i] > 0) !== (MY[i] === 1));
+    const last = segs[segs.length - 1];
+    last.hold = 3000;
+    last.text = `${R} 轮之后 logloss = ${fmt(loss[R], 3)}。按 p ≥ 0.5 判为好瓜，${wrong.length ? `还有 ${wrong.length} 个瓜分错（${wrong.map(i => '#' + (i + 1)).join('、')}，表中 p 标红）` : '17 个瓜全部分对'}。继续加树，训练误差还会下降，但更可能是在记噪声：这正是要用验证集早停的原因。`;
+    return segs;
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, Hh = st.h;
+    const R1 = rect(40, 10, W - 52, Math.round(W * 0.74) - 36);
+    const R2 = rect(40, R1.b + 50, W - 52, Hh - R1.b - 50 - 36);
+    const { sx, sy } = melonAxes(ctx, R1);
+    const r = s.r, H0 = hist[r];
+    let gA = grids[r], gB = grids[r], k = 0, m = H0.before, gv = H0.g, hv = H0.h, lossX = r, tK = 0, wK = 0;
+    if (s.k === 'gh') { if (r > 0) { const e = ease(p); gv = lerpArr(hist[r - 1].g, H0.g, e); hv = lerpArr(hist[r - 1].h, H0.h, e); } else if (p < 0.2) { gv = null; } }
+    else if (s.k === 'tree') { tK = ease(p); }
+    else if (s.k === 'w') { tK = 1; wK = ease(p); }
+    else if (s.k === 'upd') { tK = 1; wK = 1; gB = grids[r + 1]; k = ease(p); m = lerpArr(H0.before, H0.after, k); lossX = r + k; }
+    else { gB = grids[r + 1]; k = ease(p); m = lerpArr(H0.before, H0.after, k); lossX = r + k; tK = 1; }
+    phases.forEach((el, j) => el.classList.toggle('on', s.ph >= 0 ? j === s.ph : j === Math.min(3, Math.floor(p * 4))));
+    shadeMap(ctx, R1, sx, sy, (x, y, a, b) => { const c = a * NY + b; return gA[c] + (gB[c] - gA[c]) * k; }, 0.38, 2.4);
+    // current tree partition
+    if (tK > 0) {
+      const T = H0.tree, bx = regions(T.root);
+      const fade = s.k === 'quick' ? 0.55 : 1;
+      ctx.globalAlpha = fade;
+      for (const n of T.bfs) if (!n.leaf) splitLine(ctx, n, bx.get(n), sx, sy, tK, C.ink, 1.8);
+      ctx.globalAlpha = 1;
+      if (wK > 0) {
+        ctx.globalAlpha = wK;
+        for (const n of T.nodes) {
+          if (!n.leaf || n.removed) continue;
+          const b = bx.get(n);
+          const cx = sx((b[0] + b[1]) / 2), cy = sy((b[2] + b[3]) / 2);
+          const lab = fmtS(S.eta * n.w, 3);
+          ctx.font = fMono(10.5, 600);
+          const tw = ctx.measureText(lab).width;
+          ctx.fillStyle = A(C.plate, 0.88); rr(ctx, cx - tw / 2 - 4, cy - 10, tw + 8, 15, 3); ctx.fill();
+          text(ctx, lab, cx, cy + 1.5, fMono(10.5, 600), signCol(n.w), 'center');
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    for (const id of ALLIDX) {
+      const wrong = Math.abs(m[id]) > 1e-9 && (m[id] > 0) !== (MY[id] === 1);
+      melon(ctx, sx(MX[id][0]), sy(MX[id][1]), MY[id] === 1, 4.6, 1, wrong ? C.g : null);
+    }
+    text(ctx, `第 ${r + 1} 轮`, R1.r - 8, R1.y + 16, fSans(12, 700), C.ink, 'right');
+    // loss curve
+    const lx = scale(0, R, R2.x, R2.r), ly = scale(0, 0.75, R2.b, R2.y);
+    axes(ctx, R2, lx, ly, { xt: [0, 5, 10, 15, 20], yt: [0, 0.25, 0.5, 0.75], yf: v => v.toFixed(2), xl: '树的数量 →' });
+    text(ctx, '训练集 logloss', R2.r - 6, R2.y + 14, fSans(11.5, 500), C.ink2, 'right');
+    ctx.beginPath();
+    const fl = Math.floor(lossX);
+    for (let t = 0; t <= fl; t++) { const x = lx(t), y = ly(loss[t]); if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    const fr = lossX - fl;
+    const endY = fr > 0 ? lerp(loss[fl], loss[fl + 1], fr) : loss[fl];
+    if (fr > 0) ctx.lineTo(lx(lossX), ly(endY));
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.8; ctx.stroke();
+    ctx.beginPath(); ctx.arc(lx(lossX), ly(endY), 3.6, 0, Math.PI * 2); ctx.fillStyle = C.g; ctx.fill();
+    text(ctx, fmt(endY, 3), Math.min(lx(lossX) + 8, R2.r - 30), ly(endY) - 6, fMono(10.5, 600), C.ink);
+    fillTable(m, gv, hv);
+  }
+  compute();
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindRange('loop-eta', v => fmt(v, 2), v => { S.eta = v; compute(); tl.rebuild('end'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+/* =====================================================================
+   图 8 · 分桶、梯度直方图，以及“父减子”
+   ===================================================================== */
+function figHist() {
+  const fig = document.getElementById('fig-hist');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? 520 : 480));
+  const S = { bins: 8 };
+  const n = MANY.length;
+  const ds = MANY.map(r => r[0]), xs = MANY.map(r => r[1]), ys = MANY.map(r => r[2]), jit = MANY.map(r => r[3]);
+  const g = ys.map(y => 0.5 - y), h = ys.map(() => 0.25);
+  const G = sum(g), H = sum(h);
+  const gainOf = (GL, HL) => {
+    const GR = G - GL, HR = H - HL;
+    if (HL < 1 || HR < 1) return NaN;
+    return 0.5 * ((GL * GL) / (HL + 1) + (GR * GR) / (HR + 1) - (G * G) / (H + 1));
+  };
+  const ord = ALLN(n).sort((a, b) => xs[a] - xs[b]);
+  const rankX = new Array(n); ord.forEach((i, k) => { rankX[i] = k; });
+  const exact = [];
+  { let GL = 0, HL = 0; for (let k = 0; k < n - 1; k++) { const i = ord[k]; GL += g[i]; HL += h[i]; const a = xs[i], b = xs[ord[k + 1]]; if (a !== b) exact.push({ thr: (a + b) / 2, gain: gainOf(GL, HL) }); } }
+  const argmax = arr => arr.reduce((b, c) => (isFinite(c.gain) && (!b || c.gain > b.gain) ? c : b), null);
+  const bestExact = argmax(exact);
+  function ALLN(k) { return [...Array(k).keys()]; }
+  function quantileCuts(vals, B) {
+    const s = vals.slice().sort((a, b) => a - b), cuts = [];
+    for (let k = 1; k < B; k++) { const v = s[Math.floor((k * s.length) / B)]; if (!cuts.length || v > cuts[cuts.length - 1]) cuts.push(v); }
+    return cuts;
+  }
+  const binOf = (v, cuts) => { let b = 0; while (b < cuts.length && v >= cuts[b]) b++; return b; };
+  let cuts, bins, cand, bestHist, sub;
+  function compute() {
+    cuts = quantileCuts(xs, S.bins);
+    bins = ALLN(cuts.length + 1).map(() => ({ G: 0, H: 0, n: 0 }));
+    xs.forEach((v, i) => { const b = bins[binOf(v, cuts)]; b.G += g[i]; b.H += h[i]; b.n++; });
+    cand = []; let GL = 0, HL = 0;
+    for (let k = 0; k < cuts.length; k++) { GL += bins[k].G; HL += bins[k].H; cand.push({ thr: cuts[k], gain: gainOf(GL, HL) }); }
+    bestHist = argmax(cand);
+    const c2 = quantileCuts(ds, S.bins);
+    const mk = () => ALLN(c2.length + 1).map(() => ({ G: 0, H: 0 }));
+    const par = mk(), L = mk(), R = mk();
+    let nL = 0;
+    ds.forEach((v, i) => {
+      const b = binOf(v, c2);
+      par[b].G += g[i]; par[b].H += h[i];
+      if (xs[i] < bestHist.thr) { L[b].G += g[i]; L[b].H += h[i]; nL++; } else { R[b].G += g[i]; R[b].H += h[i]; }
+    });
+    const smallLeft = nL <= n - nL;
+    sub = { cuts: c2, par, small: smallLeft ? L : R, big: smallLeft ? R : L, nS: smallLeft ? nL : n - nL, nB: smallLeft ? n - nL : nL, sName: smallLeft ? '左孩子' : '右孩子', bName: smallLeft ? '右孩子' : '左孩子' };
+  }
+  function build() {
+    const B = cuts.length + 1;
+    return [
+      { k: 'samples', dur: 900, hold: 2000, title: '一个节点里的 200 个瓜。', text: `横轴是含糖率。精确算法要在每两个相邻的不同取值之间都试一次，这里有 ${exact.length} 个候选点（下方的细刻度）。` },
+      { k: 'cuts', dur: 1200, hold: 2000, title: `按分位数切出 ${B} 个桶。`, text: `每个桶里的瓜数量差不多（约 ${Math.round(n / B)} 个），所以桶的宽度不一样：数据密的地方桶窄。这一步在训练开始前只做一次。` },
+      { k: 'fill', dur: 2200, hold: 2000, title: '把每个瓜的 g、h 加进它所在的桶。', text: '得到这个特征的梯度直方图。之后找切分时，每个桶只剩 G、H 两个数，不用再看单个样本。' },
+      { k: 'scan', dur: 2000, hold: 1800, title: `只在 ${B - 1} 个桶边界上算 Gain。`, text: '公式和精确算法完全一样，只是 G_L、H_L 按桶累加。' },
+      { k: 'compare', dur: 1000, hold: 2600, title: '和精确算法对比。', text: `精确算法的最佳切分在 ${fmt(bestExact.thr, 3)}，Gain = ${fmt(bestExact.gain, 2)}；hist 的最佳切分在 ${fmt(bestHist.thr, 3)}，Gain = ${fmt(bestHist.gain, 2)}。候选点从 ${exact.length} 个降到 ${B - 1} 个，结果很接近。` },
+      { k: 'sub1', dur: 1300, hold: 2200, title: '切开之后，两个孩子也要建直方图。', text: `按含糖率 < ${fmt(bestHist.thr, 3)} 分成两个孩子后，还要为它们在每个特征上建直方图，才能继续往下找切分。以密度为例：先对瓜少的${sub.sName}（${sub.nS} 个）直接统计。` },
+      { k: 'sub2', dur: 1500, hold: 2800, title: '另一个孩子用减法。', text: `${sub.bName}（${sub.nB} 个瓜）不用再扫一遍样本：父节点直方图逐桶减去${sub.sName}的，就是它的直方图。直方图的构建量因此省掉将近一半。` },
+    ];
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, Hh = st.h, padL = 44, padR = 14;
+    const sx = scale(0, 0.5, padL, W - padR);
+    const SR = rect(padL, 26, W - padL - padR, 70);
+    text(ctx, '含糖率（200 个瓜，第一轮：好瓜 g = −0.5，坏瓜 g = +0.5，h = 0.25）', padL, 16, fSans(11.5, 500), C.ink2);
+    ctx.fillStyle = C.plate2; ctx.fillRect(SR.x, SR.y, SR.w, SR.h);
+    for (const t of [0, 0.1, 0.2, 0.3, 0.4, 0.5]) text(ctx, t.toFixed(1), sx(t), SR.b + 24, fMono(10), C.muted, 'center');
+    // exact candidate ticks
+    const exA = i <= 1 ? 1 : i === 2 ? 1 - 0.6 * p : 0.4;
+    ctx.globalAlpha = exA;
+    for (const c of exact) line(ctx, sx(c.thr) + 0.5, SR.b + 2, sx(c.thr) + 0.5, SR.b + 9, C.ink2, 1);
+    ctx.globalAlpha = 1;
+    const subMode = s.k === 'sub1' || s.k === 'sub2';
+    const lowTop = SR.b + 36;
+    // bin cut lines
+    const cutK = i === 1 ? ease(p) : i > 1 ? 1 : 0;
+    const cutBottom = subMode ? SR.b : lowTop + 150;
+    if (cutK > 0 && !subMode) {
+      cuts.forEach((c, k) => {
+        const a = sub01(cutK, k / cuts.length * 0.6, k / cuts.length * 0.6 + 0.4);
+        if (a <= 0) return;
+        line(ctx, sx(c) + 0.5, SR.y, sx(c) + 0.5, lerp(SR.y, cutBottom, a), C.muted, 1, [4, 3]);
+      });
+    }
+    if (subMode) {
+      const x = sx(bestHist.thr);
+      ctx.fillStyle = A(C.ink, 0.05); ctx.fillRect(SR.x, SR.y, x - SR.x, SR.h);
+      line(ctx, x, SR.y - 4, x, SR.b + 4, C.ink, 2);
+      text(ctx, '左孩子', SR.x + 6, SR.y + 14, fSans(11, 500), C.ink2);
+      text(ctx, '右孩子', SR.r - 6, SR.y + 14, fSans(11, 500), C.ink2, 'right');
+    }
+    // samples (they fall into the histogram during "fill")
+    const GR = rect(padL, lowTop, W - padL - padR, 72), HR = rect(padL, GR.b + 8, W - padL - padR, 50);
+    for (let k = 0; k < n; k++) {
+      const x = sx(xs[k]);
+      let y = SR.y + 8 + jit[k] * (SR.h - 16), a = 1;
+      if (s.k === 'fill') {
+        const t0 = (rankX[k] / n) * 0.6, u = ease(sub01(p, t0, t0 + 0.35));
+        y = lerp(y, GR.y + GR.h / 2, u); a = 1 - u * 0.85;
+      }
+      ctx.globalAlpha = a;
+      ctx.fillStyle = ys[k] ? C.pos : C.neg;
+      if (ys[k]) { ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill(); } else ctx.fillRect(x - 2.2, y - 2.2, 4.4, 4.4);
+    }
+    ctx.globalAlpha = 1;
+    if (!subMode) {
+      // histogram
+      const B = bins.length, edges = [0].concat(cuts, [0.5]);
+      const gMax = Math.max(...bins.map(b => Math.abs(b.G))), hMax = Math.max(...bins.map(b => b.H));
+      let partial = null;
+      if (s.k === 'fill') {
+        partial = bins.map(() => ({ G: 0, H: 0 }));
+        for (let k = 0; k < n; k++) { const t0 = (rankX[k] / n) * 0.6; if (p >= t0 + 0.35) { const b = partial[binOf(xs[k], cuts)]; b.G += g[k]; b.H += h[k]; } }
+      }
+      ctx.fillStyle = C.plate2; ctx.fillRect(GR.x, GR.y, GR.w, GR.h); ctx.fillRect(HR.x, HR.y, HR.w, HR.h);
+      if (i < 2) text(ctx, '梯度直方图（每个桶的 G、H）会出现在这里', GR.x + GR.w / 2, GR.y + GR.h / 2 + 16, fSans(11.5), C.muted, 'center');
+      if (i >= 2) {
+        line(ctx, GR.x, GR.y + GR.h / 2 + 0.5, GR.r, GR.y + GR.h / 2 + 0.5, C.faint);
+        text(ctx, 'G', GR.x - 8, GR.y + GR.h / 2 + 5, fMath(15), C.g, 'right');
+        text(ctx, 'H', HR.x - 8, HR.b - 4, fMath(15), C.h, 'right');
+        for (let b = 0; b < B; b++) {
+          const v = partial ? partial[b] : bins[b];
+          const x0 = sx(edges[b]) + 1.5, x1 = sx(edges[b + 1]) - 1.5;
+          const gh = (v.G / gMax) * (GR.h / 2 - 5);
+          ctx.fillStyle = A(C.g, 0.85); ctx.fillRect(x0, gh > 0 ? GR.y + GR.h / 2 - gh : GR.y + GR.h / 2, x1 - x0, Math.abs(gh));
+          const hh = (v.H / hMax) * (HR.h - 6);
+          ctx.fillStyle = A(C.h, 0.85); ctx.fillRect(x0, HR.b - hh, x1 - x0, hh);
+          if (!partial && x1 - x0 > 34) text(ctx, fmtS(bins[b].G, 1), (x0 + x1) / 2, gh > 0 ? GR.y + GR.h / 2 - gh - 4 : GR.y + GR.h / 2 + Math.abs(gh) + 11, fMono(9.5), C.g, 'center');
+        }
+      }
+      // gain chart
+      const RG = rect(padL, HR.b + 22, W - padL - padR, Hh - HR.b - 22 - 22);
+      if (i < 3) { ctx.fillStyle = C.plate2; ctx.fillRect(RG.x, RG.y, RG.w, RG.h); text(ctx, 'Gain', RG.x + 6, RG.y + 14, fSans(11.5, 500), C.muted); }
+      if (i >= 3) {
+        const gs = exact.map(c => c.gain).filter(isFinite).concat(cand.map(c => c.gain).filter(isFinite));
+        const gy = scale(Math.min(0, ...gs), Math.max(...gs) * 1.15, RG.b, RG.y);
+        ctx.fillStyle = C.plate2; ctx.fillRect(RG.x, RG.y, RG.w, RG.h);
+        line(ctx, RG.x, gy(0) + 0.5, RG.r, gy(0) + 0.5, C.faint);
+        text(ctx, 'Gain', RG.x + 6, RG.y + 14, fSans(11.5, 500), C.ink2);
+        if (s.k === 'compare') {
+          ctx.globalAlpha = ease(p);
+          ctx.beginPath(); let st0 = false;
+          for (const c of exact) { if (!isFinite(c.gain)) { st0 = false; continue; } const x = sx(c.thr), y = gy(c.gain); if (!st0) { ctx.moveTo(x, y); st0 = true; } else ctx.lineTo(x, y); }
+          ctx.strokeStyle = C.muted; ctx.lineWidth = 1.2; ctx.stroke();
+          const bx = sx(bestExact.thr), by = gy(bestExact.gain);
+          ctx.beginPath(); ctx.arc(bx, by, 5, 0, Math.PI * 2); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.5; ctx.stroke();
+          text(ctx, `精确 ${fmt(bestExact.gain, 2)}`, bx + 8, by - 8, fSans(10.5, 500), C.muted);
+          ctx.globalAlpha = 1;
+        }
+        const shown = s.k === 'scan' ? Math.floor(ease(p) * cand.length + 1e-6) : cand.length;
+        ctx.beginPath(); let st1 = false;
+        for (let k = 0; k < shown; k++) { const c = cand[k]; if (!isFinite(c.gain)) continue; const x = sx(c.thr), y = gy(c.gain); if (!st1) { ctx.moveTo(x, y); st1 = true; } else ctx.lineTo(x, y); }
+        ctx.strokeStyle = C.ink; ctx.lineWidth = 1.6; ctx.stroke();
+        for (let k = 0; k < shown; k++) {
+          const c = cand[k], x = sx(c.thr);
+          if (!isFinite(c.gain)) { const y = gy(0); line(ctx, x - 3, y - 3, x + 3, y + 3, C.faint, 1.3); line(ctx, x - 3, y + 3, x + 3, y - 3, C.faint, 1.3); continue; }
+          ctx.beginPath(); ctx.arc(x, gy(c.gain), 3.6, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+        }
+        if (s.k === 'scan' && shown > 0 && shown <= cand.length) { const x = sx(cand[shown - 1].thr); line(ctx, x, SR.y, x, RG.b, A(C.ink, 0.6), 1.2); }
+        if (shown === cand.length && bestHist) {
+          const x = sx(bestHist.thr), y = gy(bestHist.gain);
+          ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.8; ctx.stroke();
+          text(ctx, `hist ${fmt(bestHist.gain, 2)}`, x + 10, y + 14, fSans(10.5, 700), C.ink);
+        }
+      }
+    } else {
+      // "parent − child" on another feature (密度)
+      const rows = [
+        { name: '父节点（200 个）', data: sub.par },
+        { name: `${sub.sName}（${sub.nS} 个，直接统计）`, data: sub.small },
+        { name: `${sub.bName}（${sub.nB} 个）= 父 − ${sub.sName.slice(0, 1)}`, data: sub.big },
+      ];
+      const top = SR.b + 44, rowH = Math.min(92, (Hh - top - 30) / 3);
+      const dx = scale(0.2, 0.8, padL, W - padR);
+      const edges = [0.2].concat(sub.cuts, [0.8]);
+      const gMax = Math.max(...sub.par.map(b => Math.abs(b.G))), hMax = Math.max(...sub.par.map(b => b.H));
+      text(ctx, '另一个特征：密度的梯度直方图', padL, top - 14, fSans(11.5, 500), C.ink2);
+      rows.forEach((row, ri) => {
+        const y0 = top + ri * rowH;
+        const gRow = rect(padL, y0 + 18, W - padL - padR, (rowH - 26) * 0.55), hRow = rect(padL, gRow.b + 3, W - padL - padR, (rowH - 26) * 0.45);
+        let a = 1, k = 1;
+        if (ri === 1) { a = s.k === 'sub1' ? ease(sub01(p, 0.1, 0.5)) : 1; k = s.k === 'sub1' ? ease(sub01(p, 0.3, 1)) : 1; }
+        if (ri === 2) { a = s.k === 'sub2' ? ease(sub01(p, 0, 0.3)) : 0; k = s.k === 'sub2' ? ease(sub01(p, 0.35, 1)) : 0; }
+        if (a <= 0) return;
+        ctx.globalAlpha = a;
+        text(ctx, row.name, padL, y0 + 12, fSans(11.5, ri === 2 ? 700 : 500), ri === 2 ? C.ink : C.ink2);
+        ctx.fillStyle = C.plate2; ctx.fillRect(gRow.x, gRow.y, gRow.w, gRow.h + hRow.h + 3);
+        line(ctx, gRow.x, gRow.y + gRow.h / 2 + 0.5, gRow.r, gRow.y + gRow.h / 2 + 0.5, C.faint);
+        row.data.forEach((v, b) => {
+          const x0 = dx(edges[b]) + 1.5, x1 = dx(edges[b + 1]) - 1.5;
+          const Gv = ri === 1 ? v.G * k : ri === 2 ? lerp(sub.par[b].G, v.G, k) : v.G;
+          const Hv = ri === 1 ? v.H * k : ri === 2 ? lerp(sub.par[b].H, v.H, k) : v.H;
+          const gh = (Gv / gMax) * (gRow.h / 2 - 3), hh = (Hv / hMax) * (hRow.h - 3);
+          ctx.fillStyle = A(C.g, 0.85); ctx.fillRect(x0, gh > 0 ? gRow.y + gRow.h / 2 - gh : gRow.y + gRow.h / 2, x1 - x0, Math.abs(gh));
+          ctx.fillStyle = A(C.h, 0.85); ctx.fillRect(x0, hRow.b - hh, x1 - x0, hh);
+        });
+        ctx.globalAlpha = 1;
+      });
+      for (const t of [0.2, 0.4, 0.6, 0.8]) text(ctx, t.toFixed(1), dx(t), Hh - 10, fMono(10), C.muted, 'center');
+    }
+  }
+  compute();
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  bindSeg('hist-bins', v => { S.bins = +v; compute(); tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 9 · 缺失值：放左边还是右边
+   ===================================================================== */
+function figMissing() {
+  const fig = document.getElementById('fig-missing');
+  const st = new Stage(fig.querySelector('canvas'), w => (w < 560 ? 440 : 420));
+  const MISS = [2, 11, 15]; // #3, #12, #16
+  const X = MX.map((r, i) => [r[0], MISS.includes(i) ? NaN : r[1]]);
+  const G = sum(G1), H = sum(H1);
+  const sc = scanFeature(X, G1, H1, ALLIDX, 1, DEMO, G, H, true);
+  const pres = sc.present, np = pres.length;
+  const pA = sc.passes[0].slice().sort((a, b) => a.k - b.k);
+  const pB = sc.passes[1].slice().sort((a, b) => a.k - b.k);
+  const bestOf = arr => arr.reduce((b, c) => (c.valid && (!b || c.lossChg > b.lossChg) ? c : b), null);
+  const bA = bestOf(pA), bB = bestOf(pB), best = sc.best;
+  const dirTxt = best.defaultLeft ? '左边（“是”）' : '右边（“否”）';
+  function build() {
+    return [
+      { k: 'intro', dur: 800, hold: 2000, title: '3 个瓜缺了含糖率。', text: `#3、#12、#16 的含糖率缺失，用“?”表示，先放到一边。只把有值的 ${np} 个瓜按含糖率排序。` },
+      { k: 'A', dur: 3600, hold: 1600, title: '第一遍：缺失的瓜都放右边。', text: '从左往右扫。左边 = 有值的一段；右边 = 剩下有值的 + 3 个缺失的。最后一个位置是“所有有值的在左、缺失的单独在右”。' },
+      { k: 'B', dur: 4200, hold: 1600, title: '第二遍：缺失的瓜都放左边。', text: '再扫一遍。这一次缺失的瓜一直跟着左边。第一个位置是“缺失的单独在左、所有有值的在右”。' },
+      { k: 'cmp', dur: 900, hold: 2800, title: '两遍一起比较。', text: `放右边时最好的 Gain = ${fmt(bA.gain, 3)}，放左边时最好的是 ${fmt(bB.gain, 3)}，都切在含糖率 ${bB.thr.toFixed(4)}。放左边更好，所以这个节点记下：缺失值默认走${dirTxt}。` },
+      { k: 'use', dur: 1600, hold: 2800, title: '预测时直接走默认方向。', text: '以后遇到含糖率缺失的瓜，不管是训练集里的还是新来的，到这个节点都走默认方向。这里 3 个缺失的瓜有 2 个是坏瓜，跟含糖率低、坏瓜多的一侧放在一起，Gain 更大。' },
+    ];
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const W = st.w, Hh = st.h, padL = 30, padR = 12;
+    const slots = np + 4, cw = (W - padL - padR) / slots;
+    const slotX = k => padL + (k + 0.5) * cw;
+    // layout: A = present 0..np-1, missing np+1..np+3 ; B = missing 0..2, present 4..np+3
+    let tB = 0;
+    if (s.k === 'B') tB = ease(sub01(p, 0, 0.22));
+    else if (s.k === 'cmp' || s.k === 'use') tB = best.defaultLeft ? 1 : 0;
+    const presX = k => slotX(lerp(k, k + 4, tB));
+    const missX = j => slotX(lerp(np + 1 + j, j, tB));
+    const gBase = 118, hBase = 170, gS = 30 / 0.6, hS = 20 / 0.25;
+    text(ctx, '特征：含糖率（有值的从小到大，“?” 为缺失）', padL, 18, fSans(13, 700), C.ink);
+    // sweep cursor
+    let pass = null, prog = 0;
+    if (s.k === 'A') { pass = pA; prog = ease(p); }
+    if (s.k === 'B') { pass = pB; prog = ease(sub01(p, 0.25, 1)); }
+    let cursor = null, shownA = s.k === 'A' ? -1 : i > 1 ? pA.length : -1, shownB = s.k === 'B' ? -1 : i > 2 ? pB.length : -1;
+    const kToX = k => (k <= 0 ? presX(0) - cw / 2 : k >= np ? presX(np - 1) + cw / 2 : (presX(k - 1) + presX(k)) / 2);
+    if (pass) {
+      const pos = prog * (pass.length - 1);
+      const j = Math.floor(pos), fr = pos - j;
+      const k0 = pass[j].k, k1 = pass[Math.min(pass.length - 1, j + 1)].k;
+      cursor = { x: lerp(kToX(k0), kToX(k1), fr), c: pass[Math.round(pos)] };
+      if (s.k === 'A') shownA = Math.round(pos); else shownB = Math.round(pos);
+      if (s.k === 'B' && p < 0.22) { cursor = null; shownB = -1; }
+    }
+    if (cursor) {
+      const leftEdge = Math.min(presX(0), missX(0)) - cw / 2;
+      ctx.fillStyle = A(C.ink, 0.05); ctx.fillRect(leftEdge, 28, cursor.x - leftEdge, hBase + 6 - 28);
+    }
+    text(ctx, 'g', 12, gBase + 4, fMath(15), C.g, 'center');
+    text(ctx, 'h', 12, hBase - 4, fMath(15), C.h, 'center');
+    line(ctx, padL, gBase + 0.5, W - padR, gBase + 0.5, C.rule);
+    line(ctx, padL, hBase + 0.5, W - padR, hBase + 0.5, C.rule);
+    const bw = Math.max(3, Math.min(12, cw * 0.45));
+    const col = (id, x, missing) => {
+      melon(ctx, x, 42, MY[id] === 1, 5);
+      if (cw >= 19) text(ctx, String(id + 1), x, 62, fMono(9.5), C.muted, 'center');
+      if (missing) text(ctx, '?', x, 78, fMono(11, 600), C.ink, 'center');
+      else if (cw >= 33) text(ctx, MX[id][1].toFixed(3).replace(/^0/, ''), x, 78, fMono(9.5), C.ink2, 'center');
+      const gv = G1[id] * gS; ctx.fillStyle = C.g; ctx.fillRect(x - bw / 2, gv > 0 ? gBase - gv : gBase, bw, Math.abs(gv));
+      const hv = H1[id] * hS; ctx.fillStyle = C.h; ctx.fillRect(x - bw / 2, hBase - hv, bw, hv);
+    };
+    // missing cluster frame
+    const mx0 = missX(0) - cw / 2 - 3, mx1 = missX(2) + cw / 2 + 3;
+    rr(ctx, mx0, 30, mx1 - mx0, hBase - 20, 5); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
+    text(ctx, '缺失', (mx0 + mx1) / 2, hBase + 22, fSans(11, 500), C.muted, 'center');
+    pres.forEach((id, k) => col(id, presX(k), false));
+    MISS.forEach((id, j) => col(id, missX(j), true));
+    if (cursor) {
+      line(ctx, cursor.x, 26, cursor.x, hBase + 8, C.ink, 1.6);
+      const c = cursor.c;
+      const lab = `左：G = ${fmtS(c.GL, 2)} H = ${fmt(c.HL, 2)}    右：G = ${fmtS(c.GR, 2)} H = ${fmt(c.HR, 2)}`;
+      text(ctx, lab, W / 2, hBase + 40, fMono(W < 560 ? 9.5 : 11, 500), C.ink, 'center');
+    }
+    // gain chart (or the decision node at the end)
+    const R = rect(padL, hBase + 56, W - padL - padR, Hh - hBase - 56 - 16);
+    if (s.k !== 'use') {
+      const all = pA.concat(pB).filter(c => c.valid).map(c => c.gain);
+      const gy = scale(Math.min(0, ...all), Math.max(...all) * 1.2, R.b, R.y);
+      const kx = k => R.x + (k / np) * R.w;
+      ctx.fillStyle = C.plate2; ctx.fillRect(R.x, R.y, R.w, R.h);
+      line(ctx, R.x, gy(0) + 0.5, R.r, gy(0) + 0.5, C.faint);
+      text(ctx, 'Gain（横轴：左边有几个有值的瓜）', R.x + 6, R.y + 14, fSans(11, 500), C.ink2);
+      for (let k = 0; k <= np; k += Math.max(1, Math.round(np / 7))) text(ctx, String(k), kx(k), R.b + 12, fMono(9.5), C.muted, 'center');
+      const series = (arr, upto, colr, dash) => {
+        if (upto < 0) return;
+        ctx.beginPath(); let st0 = false;
+        for (let j = 0; j <= Math.min(upto, arr.length - 1); j++) { const c = arr[j]; if (!c.valid) { st0 = false; continue; } const x = kx(c.k), y = gy(c.gain); if (!st0) { ctx.moveTo(x, y); st0 = true; } else ctx.lineTo(x, y); }
+        ctx.strokeStyle = colr; ctx.lineWidth = 1.8; ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]);
+        for (let j = 0; j <= Math.min(upto, arr.length - 1); j++) { const c = arr[j]; if (!c.valid) continue; ctx.beginPath(); ctx.arc(kx(c.k), gy(c.gain), 2.8, 0, Math.PI * 2); ctx.fillStyle = colr; ctx.fill(); }
+      };
+      series(pA, shownA, C.ink2, []);
+      series(pB, shownB, C.muted, [5, 4]);
+      if (s.k === 'cmp') {
+        const a = ease(p);
+        ctx.globalAlpha = a;
+        for (const [b, colr, lab] of [[bA, C.ink2, '缺失放右'], [bB, C.muted, '缺失放左']]) {
+          const x = kx(b.k), y = gy(b.gain);
+          ctx.beginPath(); ctx.arc(x, y, 6.5, 0, Math.PI * 2); ctx.strokeStyle = colr; ctx.lineWidth = 1.6; ctx.stroke();
+          text(ctx, `${lab} ${fmt(b.gain, 3)}`, x + 10, y + (b === best ? -8 : 14), fSans(11, b === best ? 700 : 500), b === best ? C.ink : colr);
+        }
+        ctx.globalAlpha = 1;
+      }
+    } else {
+      // the learned node with its default direction
+      const a = ease(sub01(p, 0, 0.3));
+      ctx.globalAlpha = a;
+      const cx = W / 2, top = R.y + 6, bwN = Math.min(260, W - 40);
+      rr(ctx, cx - bwN / 2, top, bwN, 34, 5); ctx.fillStyle = C.plate; ctx.fill(); ctx.strokeStyle = C.ink2; ctx.lineWidth = 1.2; ctx.stroke();
+      text(ctx, `含糖率 < ${best.thr.toFixed(4)} ?`, cx, top + 22, fSans(12.5, 500), C.ink, 'center');
+      const ly = R.b - 16, lx = cx - Math.min(150, W * 0.28), rx = cx + Math.min(150, W * 0.28);
+      line(ctx, cx - 20, top + 34, lx, ly - 16, best.defaultLeft ? C.ink : C.faint, best.defaultLeft ? 2.4 : 1.2);
+      line(ctx, cx + 20, top + 34, rx, ly - 16, best.defaultLeft ? C.faint : C.ink, best.defaultLeft ? 1.2 : 2.4);
+      text(ctx, best.defaultLeft ? '是 / 缺失' : '是', lx, ly, fSans(12, 700), C.ink, 'center');
+      text(ctx, best.defaultLeft ? '否' : '否 / 缺失', rx, ly, fSans(12, 700), C.ink, 'center');
+      ctx.globalAlpha = 1;
+      // a new melon with a missing value travels down the default branch
+      const u = ease(sub01(p, 0.3, 1));
+      const ex = best.defaultLeft ? lx : rx;
+      const px = lerp(cx, ex, u), py = lerp(top - 4, ly - 30, u);
+      ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+      text(ctx, '?', px, py + 4.5, fMono(12, 600), C.plate, 'center');
+    }
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   图 10 · 10 棵树各投一票，相加后过 sigmoid
+   ===================================================================== */
+function figPredict() {
+  const fig = document.getElementById('fig-predict');
+  const cv = fig.querySelector('canvas');
+  const st = new Stage(cv, w => (w < 720 ? Math.round(w * 0.72) + 560 : Math.round(clamp(w * 0.54, 420, 470))));
+  const K = 10;
+  const hist = trainModel(MX, MY, DEMO, K, 'logistic', 0);
+  const trees = hist.map(r => r.tree);
+  const lays = trees.map(t => treeLayout(t.root, n => !n.leaf));
+  const S = { x: [0.62, 0.3] };
+  const NX = 60, NY = 50, gridM = new Float32Array(NX * NY);
+  for (let a = 0; a < NX; a++) for (let b = 0; b < NY; b++) {
+    const x = [DOM[0][0] + ((a + 0.5) / NX) * (DOM[0][1] - DOM[0][0]), DOM[1][0] + ((b + 0.5) / NY) * (DOM[1][1] - DOM[1][0])];
+    gridM[a * NY + b] = sum(trees.map(t => DEMO.eta * t.leafOf(x).w));
+  }
+  const in0 = document.getElementById('pred-x0'), in1 = document.getElementById('pred-x1');
+  const contrib = () => trees.map(t => DEMO.eta * t.leafOf(S.x).w);
+  const pathDesc = t => {
+    const path = t.pathOf(S.x), out = [];
+    for (let k = 0; k < path.length - 1; k++) { const n = path[k], v = S.x[n.f]; out.push(`${FEAT[n.f]} ${v.toFixed(3)} ${v < n.thr ? '<' : '≥'} ${n.thr.toFixed(4)}`); }
+    return out.join(' → ');
+  };
+  function build() {
+    const c = contrib(), tot = sum(c), pr = sigmoid(tot);
+    const segs = [{ k: 'intro', dur: 700, hold: 1800, title: '新来一个瓜。', text: `密度 ${S.x[0].toFixed(3)}、含糖率 ${S.x[1].toFixed(3)}。从 ŷ = 0 出发（base_score = 0.5 对应的 log-odds）。背景是 10 棵树合起来的预测。` }];
+    for (let k = 0; k < 3; k++) segs.push({ k: 'tree', t: k, dur: 1500, hold: 1600, title: `第 ${k + 1} 棵树：`, text: `${pathDesc(trees[k])} → 落进叶子，拿到 η·w = ${fmtS(c[k], 3)}。` });
+    segs.push({ k: 'rest', dur: 2200, hold: 1800, title: '第 4–10 棵树也一样。', text: `各自走到一片叶子，合计 ${fmtS(sum(c.slice(3)), 3)}。越往后的树，数值一般越小。` });
+    segs.push({ k: 'sum', dur: 1000, hold: 2000, title: '全部加起来。', text: `ŷ = 0 ${c.map(v => (v >= 0 ? '+ ' : '− ') + fmt(Math.abs(v), 3)).join(' ')} = ${fmt(tot, 3)}。` });
+    segs.push({ k: 'sig', dur: 1300, hold: 3000, title: '过 sigmoid 变成概率。', text: `p = 1 / (1 + e^(−ŷ)) = ${fmt(pr, 3)}，${pr >= 0.5 ? '判为好瓜' : '判为坏瓜'}。拖动左边的“?”换一个瓜试试。` });
+    return segs;
+  }
+  let geom = null;
+  function layout() {
+    const W = st.w, Hh = st.h;
+    if (W >= 720) {
+      const Lw = Math.min(Math.round(W * 0.38), 380);
+      const RS = rect(40, 10, Lw - 48, Math.min(Lw - 48, Hh - 190));
+      const RSig = rect(40, RS.b + 46, Lw - 48, Hh - RS.b - 46 - 26);
+      const x0 = Lw + 26;
+      const RT = rect(x0, 30, W - x0 - 10, Math.round(Hh * 0.42));
+      const RK = rect(x0, RT.b + 30, W - x0 - 10, 40);
+      const RW = rect(x0, RK.b + 30, W - x0 - 10, Hh - RK.b - 30 - 30);
+      return { RS, RSig, RT, RK, RW, kRows: 1 };
+    }
+    const RS = rect(40, 10, W - 52, Math.round(W * 0.72) - 40);
+    const RT = rect(8, RS.b + 58, W - 16, 170);
+    const RK = rect(8, RT.b + 28, W - 16, 72);
+    const RW = rect(8, RK.b + 30, W - 16, 92);
+    const RSig = rect(40, RW.b + 40, W - 52, Hh - RW.b - 40 - 28);
+    return { RS, RSig, RT, RK, RW, kRows: 2 };
+  }
+  function draw(i, p, s) {
+    const ctx = st.ctx; st.clear();
+    const Lg = (geom = layout());
+    const c = contrib(), tot = sum(c);
+    // how many contributions have been collected
+    let got = 0;
+    if (s.k === 'tree') got = s.t + (p >= 0.85 ? 1 : 0);
+    else if (s.k === 'rest') got = 3 + Math.floor(ease(p) * 7 + 1e-6);
+    else if (s.k === 'sum' || s.k === 'sig') got = K;
+    // scatter with the full model
+    const { sx, sy } = melonAxes(ctx, Lg.RS, { xt: [0.2, 0.4, 0.6, 0.8], yt: [0, 0.1, 0.2, 0.3, 0.4, 0.5] });
+    shadeMap(ctx, Lg.RS, sx, sy, (x, y, a, b) => gridM[a * NY + b], 0.36, 2.4);
+    for (const id of ALLIDX) melon(ctx, sx(MX[id][0]), sy(MX[id][1]), MY[id] === 1, 4, 0.9);
+    const qx = sx(S.x[0]), qy = sy(S.x[1]);
+    ctx.beginPath(); ctx.arc(qx, qy, 11, 0, Math.PI * 2); ctx.fillStyle = C.ink; ctx.fill();
+    ctx.beginPath(); ctx.arc(qx, qy, 14, 0, Math.PI * 2); ctx.strokeStyle = A(C.ink, 0.35); ctx.lineWidth = 2; ctx.stroke();
+    text(ctx, '?', qx, qy + 4.5, fMono(13, 600), C.plate, 'center');
+    // current tree
+    let tIdx = 0, pathK = 0;
+    if (s.k === 'tree') { tIdx = s.t; pathK = ease(sub01(p, 0, 0.8)); }
+    else if (s.k === 'rest') { tIdx = Math.min(K - 1, 3 + Math.floor(ease(p) * 7)); pathK = 1; }
+    else if (s.k === 'sum' || s.k === 'sig') { tIdx = K - 1; pathK = 1; }
+    const T = trees[tIdx], path = T.pathOf(S.x);
+    const shownPath = new Set(path.slice(0, 1 + Math.floor(pathK * (path.length - 1) + 1e-6)));
+    text(ctx, `第 ${tIdx + 1} 棵树（共 ${K} 棵）`, Lg.RT.x + 4, Lg.RT.y - 12, fSans(12, 700), C.ink);
+    const small = Lg.RT.w / Math.max(1, lays[tIdx].leaves) < 100;
+    drawTree(ctx, Lg.RT, T.root, lays[tIdx], {
+      internal: n => !n.leaf, path: s.k === 'intro' ? null : shownPath, maxW: 124, bh: small ? 34 : 38, lh: 13, noEdgeLabels: small,
+      tone: n => (n.leaf ? signCol(n.w) : null),
+      lines: n => (n.leaf
+        ? [{ t: fmtS(DEMO.eta * n.w, 3), c: signCol(n.w), f: fMono(small ? 10.5 : 11.5, 600) }]
+        : [{ t: condText(n), f: fSans(small ? 10 : 11, 500) }]),
+    });
+    // tokens
+    const RK = Lg.RK, per = Lg.kRows === 1 ? K : 5;
+    const tw = (RK.w - (per - 1) * 6) / per, th = Lg.kRows === 1 ? RK.h : (RK.h - 6) / 2;
+    for (let k = 0; k < K; k++) {
+      const row = Math.floor(k / per), col = k % per;
+      const x = RK.x + col * (tw + 6), y = RK.y + row * (th + 6);
+      const has = k < got;
+      rr(ctx, x, y, tw, th, 4);
+      ctx.fillStyle = has ? A(signCol(c[k]), 0.14) : C.plate2; ctx.fill();
+      ctx.strokeStyle = has ? signCol(c[k]) : C.rule; ctx.lineWidth = 1; ctx.stroke();
+      text(ctx, `#${k + 1}`, x + 5, y + 12, fMono(9, 500), C.muted);
+      if (has) text(ctx, fmtS(c[k], tw < 58 ? 2 : 3), x + tw / 2, y + th - 7, fMono(tw < 58 ? 10 : 11, 600), signCol(c[k]), 'center');
+    }
+    text(ctx, '每棵树给出的 η·w', RK.x + 2, RK.y - 8, fSans(11, 500), C.ink2);
+    // waterfall on the log-odds axis
+    const RW = Lg.RW;
+    const cum = [0]; c.forEach(v => cum.push(cum[cum.length - 1] + v));
+    const span = Math.max(2, ...cum.map(Math.abs)) + 0.4;
+    const wx = scale(-span, span, RW.x + 10, RW.r - 10);
+    text(ctx, 'log-odds 累加', RW.x + 2, RW.y - 8, fSans(11, 500), C.ink2);
+    const axisY = RW.b - 16;
+    line(ctx, RW.x, axisY + 0.5, RW.r, axisY + 0.5, C.rule);
+    for (const t of ticks(-span + 0.2, span - 0.2, 6)) { line(ctx, wx(t), axisY, wx(t), axisY + 4, C.faint); text(ctx, fmt(t, 1), wx(t), axisY + 15, fMono(9.5), C.muted, 'center'); }
+    line(ctx, wx(0), RW.y, wx(0), axisY, C.faint, 1, [2, 3]);
+    const rowY = k => RW.y + 6 + ((axisY - RW.y - 14) * k) / Math.max(1, K - 1);
+    for (let k = 0; k < got; k++) arrow(ctx, wx(cum[k]), rowY(k), wx(cum[k + 1]), rowY(k), signCol(c[k]), 2, 6);
+    if (s.k === 'tree' && p < 0.85 && p > 0.3) {
+      const k = s.t, u = ease(sub01(p, 0.3, 0.85));
+      arrow(ctx, wx(cum[k]), rowY(k), lerp(wx(cum[k]), wx(cum[k + 1]), u), rowY(k), A(signCol(c[k]), 0.7), 2, 6);
+    }
+    if (s.k === 'sum' || s.k === 'sig') {
+      const u = s.k === 'sum' ? ease(p) : 1;
+      ctx.globalAlpha = u;
+      line(ctx, wx(tot), RW.y - 2, wx(tot), axisY, C.ink, 2);
+      text(ctx, `ŷ = ${fmt(tot, 3)}`, wx(tot) + (tot > 0 ? -6 : 6), RW.y + 8, fMono(11.5, 600), C.ink, tot > 0 ? 'right' : 'left');
+      ctx.globalAlpha = 1;
+    }
+    // sigmoid
+    const RSg = Lg.RSig;
+    const gx = scale(-4, 4, RSg.x, RSg.r), gy = scale(0, 1, RSg.b, RSg.y);
+    axes(ctx, RSg, gx, gy, { xt: [-4, -2, 0, 2, 4], yt: [0, 0.5, 1], yf: v => v.toFixed(1), xl: 'ŷ →', yl: 'p = σ(ŷ)', xf: v => fmt(v, 0) });
+    plotFn(ctx, sigmoid, -4, 4, gx, gy, 120); ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.stroke();
+    if (s.k === 'sig') {
+      const u = ease(p), tt = clamp(tot, -4, 4), pr = sigmoid(tot);
+      const x = gx(tt), yC = gy(pr);
+      const up = sub01(u, 0, 0.5), left = sub01(u, 0.5, 1);
+      line(ctx, x, RSg.b, x, lerp(RSg.b, yC, up), C.g, 1.8);
+      if (left > 0) arrow(ctx, x, yC, lerp(x, RSg.x, left), yC, C.g, 1.8, 7);
+      if (u >= 0.99) {
+        ctx.beginPath(); ctx.arc(x, yC, 4.5, 0, Math.PI * 2); ctx.fillStyle = C.g; ctx.fill();
+        text(ctx, `p = ${fmt(pr, 3)}`, RSg.x + 8, yC - 7, fMono(11.5, 600), C.ink);
+      }
+    }
+  }
+  const tl = new Timeline(fig, build, draw);
+  st.onResize = () => tl.render();
+  const sync = () => {
+    in0.value = S.x[0]; in1.value = S.x[1];
+    in0.parentElement.querySelector('output').textContent = S.x[0].toFixed(3);
+    in1.parentElement.querySelector('output').textContent = S.x[1].toFixed(3);
+  };
+  let dragging = false;
+  const setFromEvent = e => {
+    if (!geom) return;
+    const { x, y } = st.pointer(e);
+    const R = geom.RS;
+    S.x = [clamp(scale(DOM[0][0], DOM[0][1], R.x, R.r).inv(x), 0.2, 0.8), clamp(scale(DOM[1][0], DOM[1][1], R.b, R.y).inv(y), 0.01, 0.49)];
+    S.x = S.x.map(v => Math.round(v * 1000) / 1000);
+    sync(); tl.rebuild('keep');
+  };
+  cv.addEventListener('pointerdown', e => {
+    if (!geom) return;
+    const { x, y } = st.pointer(e), R = geom.RS;
+    if (x < R.x - 8 || x > R.r + 8 || y < R.y - 8 || y > R.b + 8) return;
+    dragging = true; cv.setPointerCapture(e.pointerId); tl.started = true;
+    if (tl.playing) tl.pause();
+    setFromEvent(e);
+  });
+  cv.addEventListener('pointermove', e => { if (dragging) setFromEvent(e); });
+  const end = () => { dragging = false; };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  bindRange('pred-x0', v => v.toFixed(3), v => { S.x = [v, S.x[1]]; tl.rebuild('keep'); });
+  bindRange('pred-x1', v => v.toFixed(3), v => { S.x = [S.x[0], v]; tl.rebuild('keep'); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
+   boot
+   ===================================================================== */
+function boot() {
+  if (!document.documentElement.lang) document.documentElement.lang = 'zh-CN';
+  readTheme();
+  for (const f of [figBoost, figObjTree, figTaylor, figLeaf, figScan, figGrow, figLoop, figHist, figMissing, figPredict]) {
+    try { f(); } catch (err) { console.error(f.name, err); }
+  }
+  let pending = 0;
+  const rerender = () => {
+    if (pending) return;
+    pending = requestAnimationFrame(() => { pending = 0; readTheme(); ALL.forEach(x => x.render()); });
+  };
+  if (window.matchMedia) {
+    const mq = matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', rerender); else if (mq.addListener) mq.addListener(rerender);
+  }
+  new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts) {
+    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', rerender);
+    Promise.all([
+      document.fonts.load('12px "IBM Plex Mono"'), document.fonts.load('600 12px "IBM Plex Mono"'),
+      document.fonts.load('12px "Noto Sans SC"', '好瓜坏瓜含糖率密度叶子节点根是否第棵树轮左右缺失'),
+      document.fonts.load('italic 15px "STIX Two Text"'),
+    ]).then(rerender, rerender);
+    if (document.fonts.ready) document.fonts.ready.then(rerender);
+  }
+  // table of contents: highlight the chapter in view
+  const links = new Map([...document.querySelectorAll('.toc a')].map(a => [a.getAttribute('href').slice(1), a]));
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(es => {
+      for (const e of es) if (e.isIntersecting) {
+        links.forEach(a => a.removeAttribute('aria-current'));
+        const a = links.get(e.target.id); if (a) a.setAttribute('aria-current', 'true');
+      }
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    document.querySelectorAll('section.chapter').forEach(sct => io.observe(sct));
+  }
+  // the training-loop map in the header: walk around the loop
+  const cards = [...document.querySelectorAll('#loop-grid > li')];
+  if (cards.length && !RM) {
+    let k = 0;
+    const seq = [0, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4];
+    setInterval(() => {
+      cards.forEach(c => c.classList.remove('on'));
+      cards[seq[k % seq.length]].classList.add('on');
+      k = k + 1 >= seq.length ? 1 : k + 1;
+    }, 1300);
+  }
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
+</body>
+</html>
