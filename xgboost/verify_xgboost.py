@@ -52,6 +52,20 @@ p = bst.predict(xgb.DMatrix(X, feature_names=names))
 print(f"  logloss = {-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)):.4f}")
 print("  分错的瓜：", [f"#{i + 1}" for i in np.where((p >= 0.5) != (y == 1))[0]] or "无")
 
+print("\n== 第 3 章：自己写目标函数，结果和内置 binary:logistic 相同 ==")
+def logistic_obj(preds, dtrain):
+    """每一轮开头被调用一次：输入当前的 ŷ（log-odds），返回每个样本的 g、h。"""
+    y_true = dtrain.get_label()
+    p = 1 / (1 + np.exp(-preds))
+    return p - y_true, p * (1 - p)        # grad = g, hess = h
+
+custom_params = {k: v for k, v in params.items() if k != "objective"} | {"base_score": 0.0}  # base_score 直接是 log-odds
+dfull = xgb.DMatrix(X, label=y, feature_names=names)
+bst_custom = xgb.train(custom_params, dfull, num_boost_round=20, obj=logistic_obj)
+diff = np.abs(bst_custom.predict(dfull, output_margin=True) - bst.predict(dfull, output_margin=True)).max()
+print(f"  两种写法训练 20 轮后，log-odds 最大相差 {diff:.1e}")
+print("  第 1 棵树相同：", bst_custom.get_dump()[0] == bst.get_dump()[0])
+
 print("\n== 图 9：#3、#12、#16 缺失含糖率时根节点的默认方向 ==")
 Xm = X.copy()
 Xm[[2, 11, 15], 1] = np.nan

@@ -444,6 +444,28 @@ table.ptable .where { display: inline-block; font-size: 12px; color: var(--muted
 .summary li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: baseline; }
 .summary li::before { counter-increment: s; content: counter(s); font-family: var(--f-mono); font-size: 13px; color: var(--muted); border: 1px solid var(--rule); border-radius: 99px; width: 26px; height: 26px; display: grid; place-items: center; background: var(--plate); }
 footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--muted); max-width: 44em; }
+
+/* division of labour: objective computes g, h; the tree builder only reads them */
+.gh-flow { display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1.2fr) 30px minmax(0, 1fr); padding: 16px 18px; }
+.gh-col { border: 1px solid var(--rule); border-radius: 6px; background: var(--plate); padding: 10px 12px; min-width: 0; transition: border-color .25s, box-shadow .25s, opacity .25s; }
+.gh-col.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.gh-col.dim { opacity: .45; }
+.gh-h { font-size: 13px; font-weight: 700; margin-bottom: 8px; line-height: 1.5; }
+.gh-arrow { display: grid; place-items: center; color: var(--faint); font-size: 20px; }
+table.gh-t { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.gh-t th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: right; padding: 3px 6px; border-bottom: 1px solid var(--rule); }
+table.gh-t th:first-child, table.gh-t td:first-child { text-align: left; }
+table.gh-t td { font-family: var(--f-mono); text-align: right; padding: 5px 6px; border-bottom: 1px solid var(--grid); transition: background-color .25s; }
+table.gh-t tr.on td { background: var(--mark); }
+table.gh-t td.empty { color: var(--faint); }
+.gh-formula { font-family: var(--f-math); font-size: 18px; line-height: 1.75; }
+.gh-col pre.code { margin: 8px 0; padding: 8px 10px; font-size: 12px; }
+.gh-calc { font-family: var(--f-mono); font-size: 12.5px; line-height: 1.75; min-height: 5.3em; }
+.gh-note { font-size: 12px; line-height: 1.6; color: var(--muted); margin-top: 8px; }
+@media (max-width: 860px) {
+  .gh-flow { grid-template-columns: minmax(0, 1fr); }
+  .gh-arrow { transform: rotate(90deg); height: 30px; }
+}
 </style>
 </head>
 <body>
@@ -565,7 +587,44 @@ footer.foot { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--r
 
   <p>二分类常用对数损失。模型输出的 <i class="m">ŷ</i> 是 log-odds，概率 <i class="m">p</i> = σ(<i class="m">ŷ</i>) = 1/(1+e<sup>−<i>ŷ</i></sup>)，求导得到：</p>
   <div class="eq multi"><span class="eqp">对数损失：<i class="cg">g</i> = <i>p</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = <i>p</i>(1 − <i>p</i>)</span><span class="eqp">平方损失：<i class="cg">g</i> = <i>ŷ</i> − <i>y</i>,<span class="gap"></span><i class="ch">h</i> = 1</span></div>
-  <p class="key">从这里开始，建树算法不再需要知道损失函数长什么样。每个样本只要交出 <i class="m cg">g<sub>i</sub></i> 和 <i class="m ch">h<sub>i</sub></i> 两个数，后面的步骤对所有损失函数都一样。这也是 XGBoost 能支持自定义目标函数的原因：自定义目标只需要返回 grad 和 hess。</p>
+  <h3>g 和 h 是谁算的，怎么算</h3>
+  <p>XGBoost 内部分成两个部门。<b>目标函数</b>（参数 <span class="mono">objective</span>）认识损失函数，它只做一件事：每一轮开始时，拿每个样本的真实答案 <i class="m">y<sub>i</sub></i> 和当前预测 <i class="m">ŷ<sub>i</sub></i>，代进 <i class="m cg">g</i>、<i class="m ch">h</i> 的公式，算出两个数。<b>建树算法</b>不认识损失函数，它只拿这两列数字去找分裂、算叶子分数。“建树不需要知道损失函数”说的是后一个部门。</p>
+  <p><i class="m cg">g</i>、<i class="m ch">h</i> 的公式是事先在纸上推好的：对损失函数求一次导、再求一次导（预备课第 6 章），推一次就够，然后写进代码。训练时只是代入数字，对数损失每个样本只要算一次 σ、一次减法、两次乘法，比建树便宜得多。能一个样本一个样本地算，是因为总损失是各个样本的损失相加，每个样本的损失只和它自己的预测有关。</p>
+
+  <figure class="fig" id="fig-gh">
+    <figcaption class="fig-head">
+      <span class="fig-no">图 3b</span><span class="fig-title">两个部门的分工：目标函数算 g、h，建树算法只用 g、h</span>
+    </figcaption>
+    <div class="gh-flow">
+      <div class="gh-col" id="gh-pred"><div class="gh-h">① 当前预测</div><table class="gh-t" id="gh-pt" aria-label="当前预测"></table></div>
+      <div class="gh-arrow" aria-hidden="true">→</div>
+      <div class="gh-col" id="gh-obj"><div class="gh-h">② 目标函数（认识损失函数）</div><div class="gh-formula" id="gh-formula"></div><pre class="code" id="gh-code"></pre><div class="gh-calc" id="gh-calc" aria-live="off"></div></div>
+      <div class="gh-arrow" aria-hidden="true">→</div>
+      <div class="gh-col" id="gh-tree"><div class="gh-h">③ 建树算法（不认识损失函数）</div><table class="gh-t" id="gh-tt" aria-label="交给建树算法的 g 和 h"></table><div class="gh-note">它只收到这两列数字，第 4–6 章的步骤全靠它们。</div></div>
+    </div>
+    <div class="caption" aria-live="polite"></div>
+    <div class="controls"></div>
+    <div class="params">
+      <div class="seg-wrap"><span>损失函数</span><div class="seg" id="gh-loss" role="group" aria-label="损失函数"><button type="button" data-v="log" aria-pressed="true">对数损失 binary:logistic</button><button type="button" data-v="sq">平方损失 reg:squarederror</button></div></div>
+      <div class="seg-wrap"><span>轮次</span><div class="seg" id="gh-round" role="group" aria-label="轮次"><button type="button" data-v="0" aria-pressed="true">第 1 轮</button><button type="button" data-v="1">第 2 轮</button></div></div>
+      <span class="param-note">图里只画了 4 个瓜，实际 17 个都要算。换损失函数时，只有中间那个盒子变了。</span>
+    </div>
+  </figure>
+
+  <p>XGBoost 内置的每个 objective，本质上就是这样一对 <i class="m cg">g</i>、<i class="m ch">h</i> 公式。想用自己的损失函数时，就自己写中间这个盒子：一个函数，输入当前预测和标签，返回 grad（<i class="m cg">g</i>）和 hess（<i class="m ch">h</i>）两个数组。下面这段自己写的对数损失，和内置的 <span class="mono">binary:logistic</span> 训练出的树完全相同（用 xgboost 3.2 验证过，20 轮后两者的预测一致）：</p>
+<pre class="code">import numpy as np, xgboost as xgb
+
+def logistic_obj(preds, dtrain):      <span class="c"># preds：每个样本当前的 ŷ（log-odds）</span>
+    y = dtrain.get_label()
+    p = 1 / (1 + np.exp(-preds))
+    grad = p - y                        <span class="c"># g</span>
+    hess = p * (1 - p)                  <span class="c"># h</span>
+    return grad, hess
+
+params = {"eta": 0.3, "max_depth": 3, "lambda": 1, "min_child_weight": 0.5,
+          "base_score": 0, "tree_method": "exact"}   <span class="c"># 自定义目标时 base_score 直接是 log-odds</span>
+bst = xgb.train(params, dtrain, num_boost_round=20, obj=logistic_obj)   <span class="c"># 每一轮开头调用一次 logistic_obj</span></pre>
+  <p>如果某个损失的导数不好手推，还有两条路：一是数值差分，把 <i class="m">ŷ</i> 左右各挪一点点，看损失怎么变（预备课第 6 章的做法），近似出 <i class="m cg">g</i>、<i class="m ch">h</i>；二是用 JAX、PyTorch 这类自动求导工具。要注意的只有一点：<i class="m ch">h</i> 应该大于 0，也就是损失在当前点向上弯。<i class="m ch">h</i> 为负时抛物线开口朝下，没有最低点，叶子分数就算不出合理的值。</p>
   <p>和传统 GBDT 比：GBDT 用负梯度（一阶信息）决定树怎么分裂；XGBoost 在分裂和叶子取值时同时用了 <i class="m cg">g</i> 和 <i class="m ch">h</i>，并且把正则项直接写进了公式。</p>
   <p><i class="m ch">h</i> = <i class="m">p</i>(1−<i class="m">p</i>) 在 <i class="m">p</i> = 0.5 时最大（0.25），模型越确定（<i class="m">p</i> 接近 0 或 1）它越小。可以把 <i class="m ch">h</i> 理解成样本的权重：已经学得很有把握的样本，在后面的树里分量更轻。</p>
 </section>
@@ -1830,6 +1889,77 @@ function figTaylor() {
 }
 
 /* =====================================================================
+   图 3b · 两个部门的分工：目标函数算 g、h，建树算法只用 g、h
+   ===================================================================== */
+function figGH() {
+  const fig = document.getElementById('fig-gh');
+  const S = { loss: 'log', round: 0 };
+  const IDS = [0, 6, 8, 14]; // #1 #7 #9 #15
+  const HIST = { log: trainModel(MX, MY, DEMO, 2, 'logistic', 0), sq: trainModel(MX, MY, DEMO, 2, 'squared', 0.5) };
+  const pt = document.getElementById('gh-pt'), tt = document.getElementById('gh-tt');
+  const colPred = document.getElementById('gh-pred'), colObj = document.getElementById('gh-obj'), colTree = document.getElementById('gh-tree');
+  const fBox = document.getElementById('gh-formula'), code = document.getElementById('gh-code'), calc = document.getElementById('gh-calc');
+  const rowsOf = () => IDS.map(i => {
+    const m = HIST[S.loss][S.round].before[i], y = MY[i];
+    if (S.loss === 'log') { const q = sigmoid(m); return { i, y, m, p: q, g: q - y, h: q * (1 - q) }; }
+    return { i, y, m, g: m - y, h: 1 };
+  });
+  function setStatic() {
+    const log = S.loss === 'log';
+    fBox.innerHTML = log
+      ? '<i>p</i> = σ(<i>ŷ</i>)<br><i class="cg">g</i> = <i>p</i> − <i>y</i><br><i class="ch">h</i> = <i>p</i>(1 − <i>p</i>)'
+      : '<i class="cg">g</i> = <i>ŷ</i> − <i>y</i><br><i class="ch">h</i> = 1';
+    code.textContent = log ? 'p = 1 / (1 + exp(-y_hat))\ng = p - y\nh = p * (1 - p)' : 'g = y_hat - y\nh = 1.0';
+    pt.innerHTML = '<thead><tr><th>瓜</th><th>y</th><th>ŷ</th></tr></thead><tbody>' +
+      rowsOf().map(r => `<tr><td>#${r.i + 1}</td><td>${r.y}</td><td>${fmt(r.m, 3)}</td></tr>`).join('') + '</tbody>';
+    tt.innerHTML = '<thead><tr><th>瓜</th><th class="cg">g</th><th class="ch">h</th></tr></thead><tbody>' +
+      IDS.map(i => `<tr><td>#${i + 1}</td><td class="empty">?</td><td class="empty">?</td></tr>`).join('') + '</tbody>';
+  }
+  function build() {
+    const log = S.loss === 'log', rows = rowsOf();
+    const segs = [{ k: 'pred', dur: 500, hold: 2600, title: `第 ${S.round + 1} 轮开始，手里只有当前预测。`, text: S.round === 0 ? (log ? '还没有树，所有瓜的 ŷ 都是 0（log-odds 0，也就是概率 0.5）。' : '还没有树，所有瓜的预测都是 base_score = 0.5。') : '第 1 棵树已经加上，每个瓜的 ŷ 都变了，所以 g、h 要重新算。' }];
+    rows.forEach((r, j) => segs.push({
+      k: 'row', j, dur: 700, hold: 2000, title: `#${r.i + 1} 号瓜交给目标函数：`,
+      text: log
+        ? `y = ${r.y}，ŷ = ${fmt(r.m, 3)}。p = σ(${fmt(r.m, 3)}) = ${fmt(r.p, 3)}，g = ${fmt(r.p, 3)} − ${r.y} = ${fmt(r.g, 3)}，h = ${fmt(r.p, 3)} × ${fmt(1 - r.p, 3)} = ${fmt(r.h, 3)}。`
+        : `y = ${r.y}，ŷ = ${fmt(r.m, 3)}。g = ${fmt(r.m, 3)} − ${r.y} = ${fmt(r.g, 3)}，h = 1。`,
+    }));
+    segs.push({ k: 'tree', dur: 600, hold: 3000, title: '交给建树算法的只有两列数字。', text: '它不知道这些数是用哪种损失算出来的，只拿它们找分裂、算叶子分数。每个瓜只花了几次加减乘除，建树才是真正费时间的部分。' });
+    segs.push({ k: 'next', dur: 500, hold: 3400, title: '每一轮都重来一遍。', text: `树加上以后 ŷ 会变，下一轮开头再调用一次目标函数，算出新的 g、h。${S.round === 0 ? '切到“第 2 轮”看看数字怎么变。' : ''}${log ? '切到“平方损失”' : '切回“对数损失”'}，变的只有中间这个盒子。` });
+    return segs;
+  }
+  function draw(i, p, s) {
+    const rows = rowsOf();
+    const upto = s.k === 'row' ? s.j + (p > 0.5 ? 1 : 0) : s.k === 'pred' ? 0 : rows.length;
+    colPred.classList.toggle('on', s.k === 'pred');
+    colObj.classList.toggle('on', s.k === 'row');
+    colTree.classList.toggle('on', s.k === 'tree');
+    colObj.classList.toggle('dim', s.k === 'tree');
+    [...pt.tBodies[0].rows].forEach((tr, j) => tr.classList.toggle('on', s.k === 'row' && j === s.j));
+    [...tt.tBodies[0].rows].forEach((tr, j) => {
+      tr.classList.toggle('on', s.k === 'row' && j === s.j && p > 0.5);
+      const done = j < upto;
+      const cg = tr.cells[1], ch = tr.cells[2];
+      cg.textContent = done ? fmt(rows[j].g, 3) : '?';
+      ch.textContent = done ? fmt(rows[j].h, 3) : '?';
+      cg.classList.toggle('empty', !done); ch.classList.toggle('empty', !done);
+    });
+    if (s.k === 'row') {
+      const r = rows[s.j];
+      calc.innerHTML = S.loss === 'log'
+        ? `#${r.i + 1}：p = σ(${fmt(r.m, 3)}) = ${fmt(r.p, 3)}<br>g = ${fmt(r.p, 3)} − ${r.y} = <span class="cg">${fmt(r.g, 3)}</span><br>h = ${fmt(r.p, 3)} × ${fmt(1 - r.p, 3)} = <span class="ch">${fmt(r.h, 3)}</span>`
+        : `#${r.i + 1}：g = ${fmt(r.m, 3)} − ${r.y} = <span class="cg">${fmt(r.g, 3)}</span><br>h = <span class="ch">1</span>`;
+    } else calc.innerHTML = s.k === 'pred' ? '等着接收每个瓜的 y 和 ŷ' : '这一轮的 g、h 都算完了';
+  }
+  setStatic();
+  const tl = new Timeline(fig, build, draw);
+  bindSeg('gh-loss', v => { S.loss = v; setStatic(); tl.rebuild('start'); tl.play(); });
+  bindSeg('gh-round', v => { S.round = +v; setStatic(); tl.rebuild('start'); tl.play(); });
+  watchFigure(fig, tl);
+  ALL.push(tl);
+}
+
+/* =====================================================================
    图 4 · 样本落进叶子，叶子求和，抛物线的最低点就是 w*
    ===================================================================== */
 function figLeaf() {
@@ -2915,7 +3045,7 @@ function figPredict() {
 function boot() {
   if (!document.documentElement.lang) document.documentElement.lang = 'zh-CN';
   readTheme();
-  for (const f of [figBoost, figObjTree, figTaylor, figLeaf, figScan, figGrow, figLoop, figHist, figMissing, figPredict]) {
+  for (const f of [figBoost, figObjTree, figTaylor, figGH, figLeaf, figScan, figGrow, figLoop, figHist, figMissing, figPredict]) {
     try { f(); } catch (err) { console.error(f.name, err); }
   }
   let pending = 0;
